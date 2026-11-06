@@ -233,8 +233,11 @@ final class WidgetColumn {
             app.setAllCaps(true);
             app.setLetterSpacing(0.12f);
             title = label(R.string.font_medium, 0xFFFFFFFF);
-            title.setMaxLines(2);
+            // Two lines at most, ending in an ellipsis, so the text beside the artwork is never taller than it.
+            // The order matters: setSingleLine(false) resets the line limit, so the limit comes after it.
             title.setSingleLine(false);
+            title.setMaxLines(2);
+            title.setEllipsize(TextUtils.TruncateAt.END);
             subtitle = label(R.string.font_regular, 0x99FFFFFF);
             // The app's name, and for the music app the bars that move while it plays.
             LinearLayout appRow = new LinearLayout(ctx);
