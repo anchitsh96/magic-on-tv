@@ -279,6 +279,18 @@ final class Config {
     final boolean singleRow;
     /** With single_row, the band runs behind every app in the row, not only the dock apps (config.xml, dock_band_all). */
     final boolean dockBandAll;
+    /** Tall tiles in one centred sideways row, the unfocused ones dimmed (config.xml, poster_carousel); implies single_row. */
+    final boolean posterCarousel;
+    /** With poster_carousel, the side tiles turn toward the focused one (config.xml, cover_flow). */
+    final boolean coverFlow;
+    /** With poster_carousel, the dock apps in the middle of the row and Home starting on them (config.xml, centre_dock). */
+    final boolean centreDock;
+    /** With poster_carousel, the now-playing widgets left of the row (config.xml, home_widgets). */
+    final boolean homeWidgets;
+    /** The app whose last item always takes the top widget (config.xml, widget_pinned_app). */
+    final String widgetPinnedApp;
+    /** With poster_carousel, a new conversational greeting each time, above the date (config.xml, casual_greeting). */
+    final boolean casualGreeting;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -294,7 +306,16 @@ final class Config {
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
-                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap) {
+                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
+                   boolean posterCarousel, boolean coverFlow, boolean centreDock, boolean homeWidgets, String widgetPinnedApp,
+                   boolean casualGreeting) {
+        this.posterCarousel = posterCarousel;
+        this.casualGreeting = posterCarousel && casualGreeting;
+        this.coverFlow = posterCarousel && coverFlow;
+        this.homeWidgets = posterCarousel && homeWidgets;
+        // The widgets take the left side, so the row starts from its first app instead of the middle.
+        this.centreDock = posterCarousel && centreDock && !this.homeWidgets;
+        this.widgetPinnedApp = widgetPinnedApp;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -541,6 +562,12 @@ final class Config {
         String glassStyle = res.getString(R.string.glass_style);
         boolean singleRow = res.getBoolean(R.bool.single_row);
         boolean dockBandAll = res.getBoolean(R.bool.dock_band_all);
+        boolean posterCarousel = res.getBoolean(R.bool.poster_carousel);
+        boolean coverFlow = res.getBoolean(R.bool.cover_flow);
+        boolean centreDock = res.getBoolean(R.bool.centre_dock);
+        boolean homeWidgets = res.getBoolean(R.bool.home_widgets);
+        String widgetPinnedApp = res.getString(R.string.widget_pinned_app).trim();
+        boolean casualGreeting = res.getBoolean(R.bool.casual_greeting);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -655,8 +682,23 @@ final class Config {
             clockGlow = bool(json, "clock_glow", clockGlow);
             singleRow = bool(json, "single_row", singleRow);
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
+            posterCarousel = bool(json, "poster_carousel", posterCarousel);
+            coverFlow = bool(json, "cover_flow", coverFlow);
+            centreDock = bool(json, "centre_dock", centreDock);
+            homeWidgets = bool(json, "home_widgets", homeWidgets);
+            widgetPinnedApp = string(json, "widget_pinned_app", widgetPinnedApp).trim();
+            casualGreeting = bool(json, "casual_greeting", casualGreeting);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
+        }
+        // The poster carousel is a single row of icon tiles with nothing drawn around it: no band, no title above.
+        if (posterCarousel) {
+            singleRow = true;
+            dockRow = true;
+            uniformTiles = true;
+            dockBand = false;
+            dockTitle = false;
+            rowsBelow = 0;
         }
         // A top-bar app is moved there, not copied: it leaves the grid.
         for (String pkg : topBarApps) if (!hidden.contains(pkg)) hidden.add(pkg);
@@ -720,7 +762,8 @@ final class Config {
                 consumeVolumeKeys, homeIgnoreChannelKeys, powerOnHome, homeLongPressHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
-                Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap);
+                Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
+                posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting);
     }
 
     /**

@@ -47,6 +47,15 @@
             android:textSize="13sp"
             android:fontFamily="@string/font_body"
             android:visibility="gone" />
+
+        <!-- poster_carousel: darkens every tile but the focused one. -->
+        <View
+            android:id="@+id/dim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#FF000000"
+            android:alpha="0"
+            android:visibility="gone" />
     </FrameLayout>
 
     <TextView

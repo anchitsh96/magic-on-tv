@@ -311,6 +311,31 @@
     <!-- With single_row, the band runs behind every app in the row, apps installed later included, instead of
          the dock apps only. Can also be set with "dock_band_all" in a theme. -->
     <bool name="dock_band_all">false</bool>
+    <!-- Poster carousel: one sideways row of tall 1:2 tiles, 80% of the screen high, each the app's icon on a card
+         tinted from it. The focused tile is centred at full size; the others are smaller and dimmed. Turns on
+         single_row and uniform_tiles and turns off the dock band and dock title. Can also be set with
+         "poster_carousel": true in a theme's config.json. -->
+    <bool name="poster_carousel">false</bool>
+    <!-- With poster_carousel, Cover Flow: the tiles beside the focused one turn sideways toward it, smaller and
+         darker, and pack in closer the further out they are, turning as the row scrolls. Can also be set with
+         "cover_flow": true in a theme's config.json. -->
+    <bool name="cover_flow">false</bool>
+    <!-- With poster_carousel, the dock_apps sit in the middle of the row: the other apps are split, the first half
+         (alphabetically) before them and the rest after, and Home starts on the first dock app, so there are tiles
+         on both sides from the start. Can also be set with "centre_dock": true in a theme's config.json. -->
+    <bool name="centre_dock">false</bool>
+    <!-- With poster_carousel, three widgets stacked left of the row, as tall as its tiles: what the pinned app
+         (widget_pinned_app) last played on top, the two most recently played others below, kept after the apps
+         close. The row starts from its first app, right of them (centre_dock is ignored). Needs the launcher's
+         MediaListener granted once over ADB: cmd notification allow_listener com.gathin.tvhome/.MediaListener.
+         Runs a notification listener, so it is for your own build only. Can also be set with "home_widgets" and
+         "widget_pinned_app" in a theme's config.json. -->
+    <bool name="home_widgets">false</bool>
+    <!-- With poster_carousel, the greeting is a conversational line (casual_greetings, or the time-of-day one), a new
+         one each time Home comes up, and sits above the date beside the clock instead of above the clock. Can also be
+         set with "casual_greeting": true in a theme's config.json. -->
+    <bool name="casual_greeting">false</bool>
+    <string name="widget_pinned_app" translatable="false">com.spotify.tv.android</string>
     <!-- The dock band's padding equals the gap between its tiles on all four sides (as far as the grid's edges leave room),
          so its corners are concentric with the tiles' and the spacing reads even. false (the default) keeps the fixed
          14dp above and below, up to 22dp at the sides and 26dp corners. Can also be set with "dock_even_padding": true in a theme's config.json. -->

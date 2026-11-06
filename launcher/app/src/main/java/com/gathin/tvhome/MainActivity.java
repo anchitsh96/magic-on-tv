@@ -75,6 +75,7 @@ import androidx.dynamicanimation.animation.FloatPropertyCompat;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
@@ -262,6 +263,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean dockRow;
     /** config single_row: every app in the dock's row, scrolling sideways, no grid below. */
     private boolean singleRow;
+    /** config poster_carousel: tall tiles in that row, the focused one always centred. */
+    private boolean poster;
+    /** config home_widgets: the now-playing column left of the poster row; null when off. */
+    private WidgetColumn widgets;
+    /** config casual_greeting: a conversational greeting, picked again each time Home comes up. */
+    private boolean casualGreeting;
+    /** The line picked for this time; null for the time-of-day greeting. */
+    private String casualLine;
+    private int lastCasual = -1;
     /** The highlight springs past its target (config.xml, focus_overshoot); false goes straight there. */
     private boolean focusOvershoot;
     /** Festive skin from the theme (see Festival); applied while it is active today. */
@@ -478,6 +488,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         reducedMotion = cfg.reducedMotion;
         dockRow = cfg.dockRow;
         singleRow = cfg.singleRow;
+        poster = cfg.posterCarousel;
         focusOvershoot = cfg.focusOvershoot;
         festival = cfg.festival;
         festive = festival.active(LocalDate.now());
@@ -569,6 +580,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             clock.addOnLayoutChangeListener(centerGreeting);
             clockRow.addOnLayoutChangeListener(centerGreeting);
         }
+        casualGreeting = cfg.casualGreeting;
+        if (casualGreeting) {
+            // The greeting sits on the date's column beside the clock, the two lines one block, instead of above it.
+            View date = findViewById(R.id.date);
+            ViewGroup dateColumn = (ViewGroup) date.getParent();
+            ((ViewGroup) greeting.getParent()).removeView(greeting);
+            LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            glp.bottomMargin = (int) (6 * density);
+            dateColumn.addView(greeting, 0, glp);
+        }
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
         stats = findViewById(R.id.stats);
@@ -611,6 +633,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         libraryExcludedApps = new HashSet<>(cfg.libraryExcludedApps);
 
         grid = findViewById(R.id.grid);
+        if (poster) {
+            // The row runs off both edges of the screen, past the 56dp the header keeps at the sides.
+            View wrap = (View) grid.getParent();
+            ViewGroup.MarginLayoutParams wrapLp = (ViewGroup.MarginLayoutParams) wrap.getLayoutParams();
+            wrapLp.setMarginStart(-(int) (56 * density));
+            wrapLp.setMarginEnd(-(int) (56 * density));
+            wrapLp.topMargin = (int) (4 * density);
+            // A slimmer header (smaller clock, less room above it) leaves the tiles their 80% of the screen.
+            ((TextView) findViewById(R.id.clock)).setTextSize(34f);
+            View page = (View) wrap.getParent();
+            page.setPadding(page.getPaddingLeft(), (int) (16 * density), page.getPaddingRight(), page.getPaddingBottom());
+        }
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
         // Mirror only the app grid; the header and other locales keep their own layouts.
         // single_row: one span laid out sideways, so the same adapter, glass and dock band serve a scrolling row.
@@ -619,6 +653,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override
             protected boolean isLayoutRTL() {
                 return rtlAppGrid;
+            }
+
+            /**
+             * cover_flow packs the side tiles in toward the middle, so tiles laid out past the screen's edge are
+             * drawn on it: lay out a screen's width more on each side, or the row ends short of the edge.
+             */
+            @Override
+            protected void calculateExtraLayoutSpace(@NonNull RecyclerView.State state, @NonNull int[] extra) {
+                if (!cfg.coverFlow) {
+                    super.calculateExtraLayoutSpace(state, extra);
+                    return;
+                }
+                extra[0] = getWidth();
+                extra[1] = getWidth();
             }
 
             /**
@@ -634,14 +682,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public boolean requestChildRectangleOnScreen(@NonNull RecyclerView parent, @NonNull View child,
                                                          @NonNull Rect rect, boolean immediate,
                                                          boolean focusedChildVisible) {
+                // A poster row with a jump still to lay out (focusTile, a fresh start): the child's place is stale, and
+                // the jump already centres the tile.
+                if (poster && parent.isLayoutRequested()) return false;
                 if (singleRow) {
                     // Sideways: scroll just enough to bring the tile's cell inside the padding. Cells are a
                     // column wide, so the row moves a whole tile at a time and the tiles stay on the columns.
                     // The whole cell, not the card rect passed in: the card is narrower and centred in it.
+                    // poster_carousel: every move scrolls the focused cell to the middle of the screen instead.
                     int left = child.getLeft();
                     int right = child.getRight();
                     int dx;
-                    if (left < getPaddingLeft()) dx = left - getPaddingLeft();
+                    // The focused place is the left padding: half the screen less half a tile, or right of the widgets.
+                    if (poster) dx = left - getPaddingLeft();
+                    else if (left < getPaddingLeft()) dx = left - getPaddingLeft();
                     else if (right > getWidth() - getPaddingRight()) dx = right - (getWidth() - getPaddingRight());
                     else dx = 0;
                     if (dx == 0) return false;
@@ -697,6 +751,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
         grid.setAdapter(adapter);
+        if (cfg.homeWidgets) {
+            widgets = new WidgetColumn(this, new WidgetColumn.Host() {
+                @Override
+                public void onWidgetsRight() {
+                    focusTile(lastFocused);
+                }
+
+                @Override
+                public void onWidgetFocused() {
+                    hideGlass();
+                }
+            }, cfg.widgetPinnedApp);
+            // Above the row in the same frame, so tiles folding left pass behind it.
+            ((ViewGroup) grid.getParent()).addView(widgets.view, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
+        }
+        if (cfg.coverFlow) CoverFlow.attach(grid, cfg.homeWidgets);
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -721,8 +791,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // A single row never shows the names under its tiles (the title above the row names the app), so the
             // 7dp gap and 22dp label item_app.xml keeps for them would only lift the row: sit it that much lower.
             if (singleRow && !cfg.alwaysShowNames) want += (int) (29 * density);
-            if (grid.getPaddingTop() != want) {
-                grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
+            int left = grid.getPaddingLeft(), right = grid.getPaddingRight(), bottom = grid.getPaddingBottom();
+            if (poster) {
+                // The row in the middle of the room under the header, and side padding of half the screen less half
+                // a tile, so the first and last tiles can come to the centre as well. No bottom padding: the
+                // sideways row gives each item the full height under the top padding.
+                int tileH = AppAdapter.posterHeightPx(getResources().getDisplayMetrics().heightPixels, h, density);
+                int posterItemH = tileH + (int) (16 * density);
+                want = Math.max(0, (h - posterItemH) / 2);
+                int itemW = AppAdapter.posterItemWidthPx(tileH, density);
+                left = right = Math.max(0, ((r - l) - itemW) / 2);
+                bottom = 0;
+                if (widgets != null) {
+                    // home_widgets: the column as tall as a tile, level with it, in line with the clock; the focused
+                    // tile right of it (prototype: a 500px column and a 110px gap beside a 660px tile).
+                    int colLeft = (int) (56 * density);
+                    int colW = Math.round(tileH * 0.758f);
+                    int gap = Math.round(tileH * 0.165f);
+                    int itemGap = itemW - AppAdapter.posterWidthPx(tileH);
+                    left = colLeft + colW + gap - itemGap / 2;
+                    right = Math.max(0, (r - l) - left - itemW);
+                    int colTop = want + (int) (8 * density);
+                    grid.post(() -> placeWidgets(colLeft, colTop, colW, tileH));
+                }
+            }
+            if (grid.getPaddingTop() != want || grid.getPaddingLeft() != left || grid.getPaddingBottom() != bottom) {
+                grid.setPadding(left, want, right, bottom);
                 // A vertical grid parks the dock on the new padding line by scrolling (onTileFocused); a sideways
                 // row cannot scroll vertically, and the layout request made from inside this layout pass is
                 // dropped, so lay the row out again on the next frame. The glass and the title were placed for the
@@ -736,6 +830,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                             RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(pos);
                             View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
                             if (card != null && card.isFocused()) onTileFocused(pos, card);
+                            // A poster row can be focused before its side padding lands (a fresh start). The padding
+                            // is half the screen less half a tile, so the focused tile at the padding's edge is in the
+                            // middle: put it there.
+                            if (poster) ((LinearLayoutManager) grid.getLayoutManager()).scrollToPositionWithOffset(pos, 0);
                         }
                     });
                     grid.requestLayout();
@@ -1054,15 +1152,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
         if (gameDay != null && !stopped) gameDay.read();
-        grid.scrollToPosition(0);
-        lastFocused = 0;
-        lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
+        // Home goes back to the first dock app: the first tile, or the middle of the row with centre_dock.
+        final int home = adapter.homePosition();
+        grid.scrollToPosition(home);
+        lastFocused = home;
+        lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(home) : null;
         if (stopped) {
             tileRefresh.onHomeAgain();
         } else {
             // Still on screen (the quick panel was over it, or Home was already in front): the tiles are current,
-            // so only go back to the first one; rebuilding would replay the entrance animation for nothing.
-            grid.post(() -> focusTile(0));
+            // so only go back to the first dock app; rebuilding would replay the entrance animation for nothing.
+            grid.post(() -> focusTile(home));
         }
     }
 
@@ -1071,6 +1171,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStart();
         stopped = false;
         started = true;
+        if (casualGreeting) {
+            // A new line each time Home comes up, never the one just shown; the time-of-day greeting is one of them.
+            String[] lines = getResources().getStringArray(R.array.casual_greetings);
+            int pick = lastCasual;
+            while (pick == lastCasual) pick = (int) (Math.random() * (lines.length + 1));
+            lastCasual = pick;
+            casualLine = pick < lines.length ? lines[pick] : null;
+            updateGreeting();
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(timeReceiver, timeFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1085,6 +1194,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        if (widgets != null) {
+            // What played while Home was away is in the cache now; changes while it is in front come through onChange.
+            NowPlaying.onChange = widgets::refresh;
+            widgets.refresh();
+        }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -1262,8 +1376,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         cards = moduleCards ? CardFeature.run(() -> Cards.discover(this, hiddenApps,
                 () -> Cards.load(Cards.storeFile(this)), leanback), none) : none;
         adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none), leanback);
-        lastFocusedKey = returnKey;
-        lastFocused = returnSlot;
+        if (returnKey == null && adapter.appCount() > 0) {
+            // Nothing focused yet (a fresh start): begin where Home would, the middle of the row with centre_dock.
+            lastFocused = adapter.homePosition();
+            lastFocusedKey = adapter.keyAt(lastFocused);
+        } else {
+            lastFocusedKey = returnKey;
+            lastFocused = returnSlot;
+        }
         packageSequence = currentPackageSequence(packageSequence);
     }
 
@@ -1278,7 +1398,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.post(() -> {
             int pos = adapter.positionOf(returnKey);
             if (returnToLibrary || libraryFocusPending) focusLibrary();
-            else focusTile(pos >= 0 ? pos : returnSlot);
+            // Nothing focused yet (a fresh start): begin where Home would.
+            else focusTile(pos >= 0 ? pos : returnKey == null ? adapter.homePosition() : returnSlot);
             tilesReady = true;
             startPendingSettingsReorder();
             showCardPrompt();
@@ -1301,6 +1422,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        if (widgets != null) {
+            NowPlaying.onChange = null;
+            widgets.stopTicking();
+        }
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
         // Only Home's own share is dropped: a key service that saw the same DOWN keeps its hold.
         RemoteKeys.release(this);
@@ -2233,6 +2358,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /** home_widgets: the column beside the row, left in line with the clock, top level with the tiles. */
+    private void placeWidgets(int left, int top, int width, int height) {
+        // Level with a tile as laid out, when one is: its card's own top and height, not the padding's arithmetic.
+        View item = grid.getChildCount() > 0 ? grid.getChildAt(0) : null;
+        View card = item == null ? null : item.findViewById(R.id.card);
+        if (card != null && card.getHeight() > 0) {
+            top = grid.getTop() + item.getTop() + card.getTop();
+            height = card.getHeight();
+        }
+        // The column keeps a margin of room round its cards (WidgetColumn.margin), so it starts that much earlier.
+        int m = widgets.margin();
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) widgets.view.getLayoutParams();
+        if (lp.leftMargin == left - m && lp.topMargin == top - m && lp.width == width + 2 * m && lp.height == height + 2 * m) return;
+        lp.leftMargin = left - m;
+        lp.topMargin = top - m;
+        widgets.view.setLayoutParams(lp);
+        widgets.size(width, height);
+    }
+
     private void hideGlass() {
         if (!glassShown) return;
         glassShown = false;
@@ -2436,6 +2580,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (adapter.isLibraryAt(count)) focusLibrary();
                 return true;
             }
+            // home_widgets: Left from the row's first app goes into the widget column.
+            if (!forward && position == 0 && widgets != null && widgets.focus()) return true;
             return !forward && position == 0;
         }
         // Horizontal: swallow the key at a row's ends so focus never wraps to the next row or
@@ -2666,6 +2812,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         final int pos = adapter.focusablePosition(Math.max(0, Math.min(position, adapter.appCount() - 1)));
+        if (poster) {
+            // A poster row jumps the tile to the middle, then focuses it once laid out there. Focusing first would
+            // centre it with a smooth scroll from wherever the row last stood, which on a fresh start races the
+            // padding's own jump and overshoots (cover_flow lays tiles out a screen beyond the edge, so the tile
+            // is already there to focus). The padding centres a tile placed at its edge.
+            ((LinearLayoutManager) grid.getLayoutManager()).scrollToPositionWithOffset(pos, 0);
+            grid.post(() -> {
+                RecyclerView.ViewHolder h = grid.findViewHolderForAdapterPosition(pos);
+                View card = h == null ? null : h.itemView.findViewById(R.id.card);
+                if (card == null) return;
+                if (card.isFocused()) onTileFocused(pos, card);
+                else card.requestFocus();
+            });
+            return;
+        }
         RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(pos);
         if (vh != null) {
             View card = vh.itemView.findViewById(R.id.card);
@@ -2756,8 +2917,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             greeting.setText(festiveGreeting);
             greeting.setTextColor(liftTowardsWhite(festival.accentColor(), 0.25f));
         } else {
-            greeting.setText(greetingName.isEmpty() ? getString(res)
-                    : getString(R.string.greeting_with_name, getString(res), greetingName));
+            String line = casualLine != null ? casualLine : getString(res);
+            greeting.setText(greetingName.isEmpty() ? line : getString(R.string.greeting_with_name, line, greetingName));
             greeting.setTextColor(greetingColor);
         }
         if (shamsi) shamsiDate.setText(Shamsi.today(getResources()));
