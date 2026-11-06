@@ -169,9 +169,13 @@ final class NowPlaying {
         if (square != src) square.recycle();
     }
 
-    /** The widgets: the pinned app's last item first, when there is one, then the most recently played others. */
-    static List<Item> pick(List<Item> all, String pinned, int n) {
-        List<Item> sorted = new ArrayList<>(all);
+    /**
+     * The widgets: the pinned app's last item first, when there is one, then the most recently played others.
+     * Apps in {@code leaveOut} never take one (an input or Live TV says "HDMI 1", which is no content to come back to).
+     */
+    static List<Item> pick(List<Item> all, String pinned, int n, java.util.Set<String> leaveOut) {
+        List<Item> sorted = new ArrayList<>();
+        for (Item it : all) if (!leaveOut.contains(it.pkg)) sorted.add(it);
         Collections.sort(sorted, (a, b) -> Long.compare(b.playedAt, a.playedAt));
         List<Item> out = new ArrayList<>();
         for (Item it : sorted) if (it.pkg.equals(pinned)) out.add(it);

@@ -54,6 +54,8 @@ final class WidgetColumn {
     private final Context ctx;
     private final Host host;
     private final String pinned;
+    /** Apps that never take a widget: those hidden from the row, and Live TV. */
+    private final java.util.Set<String> leaveOut;
     private final float density;
     final LinearLayout view;
     private final Card[] cards = new Card[COUNT];
@@ -73,10 +75,11 @@ final class WidgetColumn {
         }
     };
 
-    WidgetColumn(Context ctx, Host host, String pinned) {
+    WidgetColumn(Context ctx, Host host, String pinned, java.util.Set<String> leaveOut) {
         this.ctx = ctx;
         this.host = host;
         this.pinned = pinned;
+        this.leaveOut = leaveOut;
         this.density = ctx.getResources().getDisplayMetrics().density;
         view = new LinearLayout(ctx);
         view.setOrientation(LinearLayout.VERTICAL);
@@ -119,7 +122,7 @@ final class WidgetColumn {
 
     /** Reads the cache again and shows it; the progress bars move while something plays and Home is in front. */
     void refresh() {
-        bind(NowPlaying.pick(NowPlaying.load(ctx), pinned, COUNT));
+        bind(NowPlaying.pick(NowPlaying.load(ctx), pinned, COUNT, leaveOut));
     }
 
     private void bind(List<NowPlaying.Item> items) {

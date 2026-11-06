@@ -785,7 +785,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     // The tile stays lit but steps back: its glow dims with the highlight gone.
                     if (tileGlow != null) tileGlow.animate().alpha(0.35f).setDuration(200).start();
                 }
-            }, cfg.widgetPinnedApp);
+            }, cfg.widgetPinnedApp, widgetLeaveOut(cfg));
             // Above the row in the same frame, so tiles folding left pass behind it.
             ((ViewGroup) grid.getParent()).addView(widgets.view, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
         }
@@ -2474,6 +2474,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             tileGlow.setBackground(glowDrawable(color, side));
             tileGlow.animate().alpha(1f).setDuration(260).start();
         }).start();
+    }
+
+    /**
+     * home_widgets: apps kept out of the widgets. Those hidden from the row are hidden here too, and Live TV, whose
+     * session only names the input ("HDMI 1"), is no content to come back to.
+     */
+    private static Set<String> widgetLeaveOut(Config cfg) {
+        Set<String> out = new HashSet<>(cfg.hiddenApps);
+        if (!cfg.liveTvPackage.isEmpty()) out.add(cfg.liveTvPackage);
+        return out;
     }
 
     /** home_widgets: the column beside the row, left in line with the clock, top level with the tiles. */
