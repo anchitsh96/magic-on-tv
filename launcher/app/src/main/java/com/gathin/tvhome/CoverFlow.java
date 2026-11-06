@@ -16,11 +16,16 @@ final class CoverFlow {
     /**
      * How far a side tile turns, how much smaller it is, how much smaller again each one further out, and the most
      * black over a tile far out. Taken from the prototype (z 140 in front and -160 / -30 behind at a 1800px
-     * perspective), measured on screen; the turn opened from its 62deg to 57deg on the TV, so more of each face shows.
+     * perspective), measured on screen; the turn opened from its 62deg to 45deg on the TV, so the next app's icon
+     * reads before you reach it.
      */
-    static final float SIDE_ANGLE = 57f, SIDE_SCALE = 0.85f, FAR_SCALE = 0.015f, MAX_DIM = 0.78f;
-    /** The first neighbour's centre sits this many tile widths out; each one after it this many more. */
-    static final float FIRST_STEP = 0.82f, NEXT_STEP = 0.29f;
+    static final float SIDE_ANGLE = 45f, SIDE_SCALE = 0.85f, FAR_SCALE = 0.015f, MAX_DIM = 0.78f;
+    /**
+     * The first neighbour's centre sits this many tile widths out; each one after it this many more. A tile turned
+     * less shows wider, so at 45deg the step grew from the prototype's 0.29: at that it covered the icon of the
+     * tile behind it.
+     */
+    static final float FIRST_STEP = 0.82f, NEXT_STEP = 0.38f;
     /** The perspective the turn is seen with, as a share of the screen width (CSS perspective 1800px on 1920). */
     static final float PERSPECTIVE = 0.94f;
 
