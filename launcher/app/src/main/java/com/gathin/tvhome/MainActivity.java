@@ -267,6 +267,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean poster;
     /** config home_widgets: the now-playing column left of the poster row; null when off. */
     private WidgetColumn widgets;
+    /** poster_carousel: the soft light in the focused app's colour behind its tile; null otherwise. */
+    private View tileGlow;
+    private int tileGlowColor;
     /** config casual_greeting: a conversational greeting, picked again each time Home comes up. */
     private boolean casualGreeting;
     /** The line picked for this time; null for the time-of-day greeting. */
@@ -590,6 +593,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             glp.bottomMargin = (int) (6 * density);
             dateColumn.addView(greeting, 0, glp);
+            // Written as said ("Back for more?", "Friday 6 November"), not in capitals: the wide tracking that suits
+            // capitals goes, and both lines grow a size to read as text rather than labels.
+            TextView dateText = (TextView) date;
+            greeting.setAllCaps(false);
+            greeting.setLetterSpacing(0.01f);
+            greeting.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+            dateText.setAllCaps(false);
+            dateText.setLetterSpacing(0.01f);
+            dateText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
         }
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
@@ -751,6 +763,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
         grid.setAdapter(adapter);
+        if (poster) {
+            // Behind the row in its frame: a glow in the focused app's colour round the tile, as the prototype's
+            // shadow. The focused tile always lands on the same place, so the glow stays put and only takes the
+            // new colour (one gradient, drawn once per change; no blur).
+            tileGlow = new View(this);
+            tileGlow.setAlpha(0f);
+            ((ViewGroup) grid.getParent()).addView(tileGlow, 0, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
+        }
         if (cfg.homeWidgets) {
             widgets = new WidgetColumn(this, new WidgetColumn.Host() {
                 @Override
@@ -761,6 +781,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 @Override
                 public void onWidgetFocused() {
                     hideGlass();
+                    // The tile stays lit but steps back: its glow dims with the highlight gone.
+                    if (tileGlow != null) tileGlow.animate().alpha(0.35f).setDuration(200).start();
                 }
             }, cfg.widgetPinnedApp);
             // Above the row in the same frame, so tiles folding left pass behind it.
@@ -814,6 +836,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     int colTop = want + (int) (8 * density);
                     grid.post(() -> placeWidgets(colLeft, colTop, colW, tileH));
                 }
+                grid.post(this::placeTileGlow);
             }
             if (grid.getPaddingTop() != want || grid.getPaddingLeft() != left || grid.getPaddingBottom() != bottom) {
                 grid.setPadding(left, want, right, bottom);
@@ -1923,6 +1946,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onTileFocused(int position, View card) {
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
+        if (tileGlow != null) glowFor(adapter.ambientColorAt(position));
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
         // would be sized to 2*pad. Run again once the tile is laid out.
         if (card.getWidth() == 0) {
@@ -2356,6 +2380,64 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ambient.setAlpha(0f);
             heroArt.setAlpha(0f);
         }
+    }
+
+    /**
+     * poster_carousel: the glow sits on the focused place, a little wider than the tile and reaching further below
+     * it than above (the prototype's 0 50px 120px -30px shadow). A circle of light, stretched to the tile's shape.
+     */
+    private void placeTileGlow() {
+        View item = grid.getChildCount() > 0 ? grid.getChildAt(0) : null;
+        View card = item == null ? null : item.findViewById(R.id.card);
+        if (tileGlow == null || card == null || card.getWidth() == 0) return;
+        int tileW = card.getWidth(), tileH = card.getHeight();
+        int itemGap = item.getWidth() - tileW;
+        int side = Math.round(tileW * 1.9f);
+        float cx = grid.getLeft() + grid.getPaddingLeft() + itemGap / 2f + tileW / 2f;
+        float cy = grid.getTop() + item.getTop() + card.getTop() + tileH * 0.56f;
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) tileGlow.getLayoutParams();
+        int left = Math.round(cx - side / 2f), top = Math.round(cy - side / 2f);
+        if (lp.width == side && lp.leftMargin == left && lp.topMargin == top) return;
+        lp.width = lp.height = side;
+        lp.leftMargin = left;
+        lp.topMargin = top;
+        tileGlow.setLayoutParams(lp);
+        tileGlow.setScaleY(tileH * 1.25f / side);
+        // A tile focused before the glow had its place (a fresh start) left its colour here: show it now.
+        if (tileGlowColor != 0) {
+            tileGlow.setBackground(glowDrawable(tileGlowColor, side));
+            if (grid.hasFocus()) tileGlow.setAlpha(1f);
+        }
+    }
+
+    private static GradientDrawable glowDrawable(int color, int side) {
+        GradientDrawable g = new GradientDrawable();
+        g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        // The tile covers the inner half of the circle, so the stops are set for its edge: about 60% strength where
+        // the halo meets the tile, gone at the circle's rim. Fainter than that, it vanished into the ambient glow.
+        int rgb = color & 0x00FFFFFF;
+        g.setColors(new int[] {rgb | 0xFF000000, rgb | 0xB3000000, rgb | 0x59000000, rgb});
+        g.setGradientRadius(side / 2f);
+        return g;
+    }
+
+    /** The glow takes the focused app's colour: a short dip and back, so colours don't smear into each other. */
+    private void glowFor(int color) {
+        int side = tileGlow.getLayoutParams().width;
+        if (color == tileGlowColor && tileGlow.getAlpha() > 0.9f) return;
+        boolean first = tileGlowColor == 0;
+        tileGlowColor = color;
+        tileGlow.animate().cancel();
+        if (side <= 0) return;
+        if (first || !animations || reducedMotion) {
+            tileGlow.setBackground(glowDrawable(color, side));
+            tileGlow.setAlpha(1f);
+            return;
+        }
+        tileGlow.animate().alpha(0.4f).setDuration(110).withEndAction(() -> {
+            tileGlow.setBackground(glowDrawable(color, side));
+            tileGlow.animate().alpha(1f).setDuration(260).start();
+        }).start();
     }
 
     /** home_widgets: the column beside the row, left in line with the clock, top level with the tiles. */

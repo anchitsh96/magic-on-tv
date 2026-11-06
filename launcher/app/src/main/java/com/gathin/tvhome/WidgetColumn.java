@@ -151,7 +151,6 @@ final class WidgetColumn {
     }
 
     private void open(NowPlaying.Item it) {
-        if (it.pkg.equals(pinned) && togglePlayback(it.pkg)) return;
         PackageManager pm = ctx.getPackageManager();
         Intent i = pm.getLeanbackLaunchIntentForPackage(it.pkg);
         if (i == null) i = pm.getLaunchIntentForPackage(it.pkg);
@@ -183,7 +182,10 @@ final class WidgetColumn {
     private final class Card {
         final int index;
         final FrameLayout root;
+        final FrameLayout artBox;
         final ImageView art;
+        final ImageView overlay;
+        final PlayPause glyph;
         final TextView app, title, subtitle;
         final View track, fill;
         final LinearLayout text;
@@ -201,9 +203,18 @@ final class WidgetColumn {
             row.setGravity(Gravity.CENTER_VERTICAL);
             root.addView(row, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
+            artBox = new FrameLayout(ctx);
+            row.addView(artBox, new LinearLayout.LayoutParams(0, 0));
             art = new ImageView(ctx);
             art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            row.addView(art, new LinearLayout.LayoutParams(0, 0));
+            artBox.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            // Over the artwork while the card is focused: what OK does, play or pause.
+            glyph = new PlayPause();
+            overlay = new ImageView(ctx);
+            overlay.setImageDrawable(glyph);
+            overlay.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            overlay.setAlpha(0f);
+            artBox.addView(overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
             text = new LinearLayout(ctx);
             text.setOrientation(LinearLayout.VERTICAL);
@@ -228,7 +239,15 @@ final class WidgetColumn {
             text.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0));
 
             root.setOnClickListener(v -> {
-                if (item != null) open(item);
+                if (item == null) return;
+                if (item.pkg.equals(pinned) && togglePlayback(item.pkg)) {
+                    // Flip at once; the session's own report (MediaListener) confirms it a moment later.
+                    item.playing = !item.playing;
+                    glyph.setPause(item.playing);
+                    if (item.playing) startTicking();
+                    return;
+                }
+                open(item);
             });
             root.setOnFocusChangeListener((v, focused) -> {
                 if (focused) {
@@ -237,6 +256,7 @@ final class WidgetColumn {
                 }
                 v.animate().scaleX(focused ? 1.035f : 1f).scaleY(focused ? 1.035f : 1f).setDuration(220).start();
                 v.setForeground(focused ? ring() : null);
+                overlay.animate().alpha(focused ? 1f : 0f).setDuration(200).start();
             });
             root.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
@@ -264,10 +284,11 @@ final class WidgetColumn {
             int pad = Math.round(h * PAD);
             int artPx = Math.round(h * ART);
             root.setPadding(pad, 0, pad, 0);
-            LinearLayout.LayoutParams alp = (LinearLayout.LayoutParams) art.getLayoutParams();
+            LinearLayout.LayoutParams alp = (LinearLayout.LayoutParams) artBox.getLayoutParams();
             alp.width = alp.height = artPx;
             alp.rightMargin = Math.round(h * 0.106f);
-            art.setLayoutParams(alp);
+            artBox.setLayoutParams(alp);
+            overlay.setBackground(rounded(0x47000000, artPx * 0.12f));
             app.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.077f);
             title.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.12f);
             title.setLineSpacing(0, 1.05f);
@@ -305,6 +326,8 @@ final class WidgetColumn {
             }
             CharSequence name = appName(it.pkg);
             boolean music = it.pkg.equals(pinned);
+            // The music app pauses from here while it plays; everything else plays (resumes in its app).
+            glyph.setPause(music && it.playing);
             String state = music ? (it.playing ? "♫" : "") : ctx.getString(R.string.widget_continue);
             app.setText(state.isEmpty() ? name : name + " · " + state);
             title.setText(it.title);
@@ -361,6 +384,60 @@ final class WidgetColumn {
             d.setCornerRadius(cardHeight * RADIUS);
             d.setStroke(Math.round(3 * density), 0xEBFFFFFF);
             return d;
+        }
+    }
+
+    /** A white play triangle or pause bars, a third of the artwork across, drawn rather than set in a font. */
+    private static final class PlayPause extends Drawable {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private boolean pause;
+
+        PlayPause() {
+            paint.setColor(0xF2FFFFFF);
+        }
+
+        void setPause(boolean p) {
+            if (pause == p) return;
+            pause = p;
+            invalidateSelf();
+        }
+
+        @Override
+        public void draw(Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float s = Math.min(b.width(), b.height()) * 0.32f;
+            float cx = b.exactCenterX(), cy = b.exactCenterY();
+            if (pause) {
+                float bar = s * 0.3f, r = bar * 0.25f;
+                c.drawRoundRect(cx - s * 0.42f, cy - s / 2, cx - s * 0.42f + bar, cy + s / 2, r, r, paint);
+                c.drawRoundRect(cx + s * 0.42f - bar, cy - s / 2, cx + s * 0.42f, cy + s / 2, r, r, paint);
+            } else {
+                // Nudged right of centre: a triangle's weight sits left of its box.
+                float x0 = cx - s * 0.38f, x1 = cx + s * 0.5f;
+                path.reset();
+                path.moveTo(x0, cy - s / 2);
+                path.lineTo(x1, cy);
+                path.lineTo(x0, cy + s / 2);
+                path.close();
+                c.drawPath(path, paint);
+            }
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            paint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter cf) {
+            paint.setColorFilter(cf);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
         }
     }
 
