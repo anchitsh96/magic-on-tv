@@ -134,11 +134,14 @@ final class WidgetColumn {
         ticking = true;
         handler.removeCallbacks(tick);
         handler.post(tick);
+        for (Card c : cards) c.bars.setRunning(c.item != null && c.item.playing && c.item.pkg.equals(pinned));
     }
 
+    /** Home went to the background: the bars and the progress stop drawing until it is back. */
     void stopTicking() {
         ticking = false;
         handler.removeCallbacks(tick);
+        for (Card c : cards) c.bars.setRunning(false);
     }
 
     /** Focus the widget used last (Left from the row's first app). */
@@ -186,6 +189,9 @@ final class WidgetColumn {
         final ImageView art;
         final ImageView overlay;
         final PlayPause glyph;
+        final ImageView eq;
+        final EqBars bars;
+        final TextView hint;
         final TextView app, title, subtitle;
         final View track, fill;
         final LinearLayout text;
@@ -227,7 +233,16 @@ final class WidgetColumn {
             title.setMaxLines(2);
             title.setSingleLine(false);
             subtitle = label(R.string.font_regular, 0x99FFFFFF);
-            text.addView(app);
+            // The app's name, and for the music app the bars that move while it plays.
+            LinearLayout appRow = new LinearLayout(ctx);
+            appRow.setOrientation(LinearLayout.HORIZONTAL);
+            appRow.setGravity(Gravity.CENTER_VERTICAL);
+            appRow.addView(app, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            bars = new EqBars();
+            eq = new ImageView(ctx);
+            eq.setImageDrawable(bars);
+            appRow.addView(eq, new LinearLayout.LayoutParams(0, 0));
+            text.addView(appRow);
             text.addView(title);
             text.addView(subtitle);
 
@@ -238,12 +253,25 @@ final class WidgetColumn {
             bar.addView(fill, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             text.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0));
 
+            // Top right while focused: what OK does here, as in the prototype.
+            hint = label(R.string.font_regular, 0x73FFFFFF);
+            hint.setAlpha(0f);
+            root.addView(hint, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
+
+            // Hold OK: open the app itself, from any widget (OK on the music one only plays or pauses).
+            root.setLongClickable(true);
+            root.setOnLongClickListener(v -> {
+                if (item != null) open(item);
+                return true;
+            });
             root.setOnClickListener(v -> {
                 if (item == null) return;
                 if (item.pkg.equals(pinned) && togglePlayback(item.pkg)) {
                     // Flip at once; the session's own report (MediaListener) confirms it a moment later.
                     item.playing = !item.playing;
                     glyph.setPause(item.playing);
+                    bars.setRunning(item.playing && ticking);
                     if (item.playing) startTicking();
                     return;
                 }
@@ -257,6 +285,7 @@ final class WidgetColumn {
                 v.animate().scaleX(focused ? 1.035f : 1f).scaleY(focused ? 1.035f : 1f).setDuration(220).start();
                 v.setForeground(focused ? ring() : null);
                 overlay.animate().alpha(focused ? 1f : 0f).setDuration(200).start();
+                hint.animate().alpha(focused ? 1f : 0f).setDuration(200).start();
             });
             root.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
@@ -290,6 +319,15 @@ final class WidgetColumn {
             artBox.setLayoutParams(alp);
             overlay.setBackground(rounded(0x47000000, artPx * 0.12f));
             app.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.077f);
+            LinearLayout.LayoutParams elp = (LinearLayout.LayoutParams) eq.getLayoutParams();
+            elp.width = Math.round(h * 0.075f);
+            elp.height = Math.round(h * 0.07f);
+            elp.leftMargin = Math.round(h * 0.035f);
+            eq.setLayoutParams(elp);
+            hint.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.06f);
+            FrameLayout.LayoutParams hlp = (FrameLayout.LayoutParams) hint.getLayoutParams();
+            hlp.topMargin = Math.round(h * 0.07f);
+            hint.setLayoutParams(hlp);
             title.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.12f);
             title.setLineSpacing(0, 1.05f);
             subtitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, h * 0.087f);
@@ -317,6 +355,9 @@ final class WidgetColumn {
             root.setAlpha(it != null ? 1f : 0.5f);
             if (it == null) {
                 app.setText("");
+                eq.setVisibility(View.GONE);
+                bars.setRunning(false);
+                hint.setText("");
                 title.setText(R.string.widget_empty_title);
                 subtitle.setText(R.string.widget_empty_subtitle);
                 art.setImageDrawable(null);
@@ -328,8 +369,12 @@ final class WidgetColumn {
             boolean music = it.pkg.equals(pinned);
             // The music app pauses from here while it plays; everything else plays (resumes in its app).
             glyph.setPause(music && it.playing);
-            String state = music ? (it.playing ? "♫" : "") : ctx.getString(R.string.widget_continue);
-            app.setText(state.isEmpty() ? name : name + " · " + state);
+            app.setText(music ? name : name + " · " + ctx.getString(R.string.widget_continue));
+            // The music app shows its bars, moving while it plays and Home is in front, resting low when paused.
+            eq.setVisibility(music ? View.VISIBLE : View.GONE);
+            bars.setColor(color);
+            bars.setRunning(music && it.playing && ticking);
+            hint.setText(music ? R.string.widget_hint_music : R.string.widget_hint_video);
             title.setText(it.title);
             subtitle.setText(it.subtitle);
             subtitle.setVisibility(TextUtils.isEmpty(it.subtitle) ? View.GONE : View.VISIBLE);
@@ -384,6 +429,78 @@ final class WidgetColumn {
             d.setCornerRadius(cardHeight * RADIUS);
             d.setStroke(Math.round(3 * density), 0xEBFFFFFF);
             return d;
+        }
+    }
+
+    /**
+     * Three bars rising and falling out of step while the music plays (the prototype's equaliser), resting low when
+     * it is paused. It schedules its own next frame, about 30 a second, only while running; nothing else redraws.
+     */
+    private static final class EqBars extends Drawable implements Runnable {
+        private static final long PERIOD_MS = 900, FRAME_MS = 33;
+        private static final float[] REST = {0.45f, 0.85f, 0.6f};
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private boolean running;
+
+        EqBars() {
+            paint.setColor(0xFF1ED760);
+        }
+
+        void setColor(int color) {
+            paint.setColor(color | 0xFF000000);
+            invalidateSelf();
+        }
+
+        void setRunning(boolean run) {
+            if (running == run) return;
+            running = run;
+            unscheduleSelf(this);
+            if (run) scheduleSelf(this, android.os.SystemClock.uptimeMillis() + FRAME_MS);
+            invalidateSelf();
+        }
+
+        @Override
+        public void run() {
+            if (!running) return;
+            invalidateSelf();
+            scheduleSelf(this, android.os.SystemClock.uptimeMillis() + FRAME_MS);
+        }
+
+        @Override
+        public void draw(Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float gap = b.width() * 0.16f, w = (b.width() - 2 * gap) / 3f, r = w * 0.35f;
+            long now = android.os.SystemClock.uptimeMillis();
+            for (int i = 0; i < 3; i++) {
+                float level;
+                if (running) {
+                    // Each bar a third of a period behind the one before, eased up and down.
+                    double phase = ((now + i * PERIOD_MS / 3) % PERIOD_MS) / (double) PERIOD_MS;
+                    level = 0.25f + 0.75f * (float) (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI));
+                } else {
+                    // Still, but at three heights, so it reads as an equaliser at rest rather than three dots.
+                    level = REST[i];
+                }
+                float x = b.left + i * (w + gap);
+                float top = b.bottom - b.height() * level;
+                c.drawRoundRect(x, top, x + w, b.bottom, r, r, paint);
+            }
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            paint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter cf) {
+            paint.setColorFilter(cf);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
         }
     }
 

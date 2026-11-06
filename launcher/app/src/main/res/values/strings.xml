@@ -89,6 +89,8 @@
     <string name="home_key_description">Makes the remote\'s Home button open this launcher.</string>
     <string name="media_listener_name">Now playing widgets</string>
     <string name="widget_continue">Continue</string>
+    <string name="widget_hint_music">OK play or pause · Hold OK to open</string>
+    <string name="widget_hint_video">OK to resume · Hold OK to open</string>
     <string name="widget_empty_title">Nothing played yet</string>
     <string name="widget_empty_subtitle">What you play shows up here</string>
     <string name="card_prompt_title">New card from %1$s</string>
