@@ -316,6 +316,10 @@
          single_row and uniform_tiles and turns off the dock band and dock title. Can also be set with
          "poster_carousel": true in a theme's config.json. -->
     <bool name="poster_carousel">false</bool>
+    <!-- With poster_carousel, the tiles' height in percent of the screen (40 to 90). 61 matches the design prototype
+         (660 of 1080 px) and leaves room for more apps beside the focused one; it also scales the header to the
+         prototype's sizes. Can also be set with "poster_height" in a theme's config.json. -->
+    <integer name="poster_height">80</integer>
     <!-- With poster_carousel, Cover Flow: the tiles beside the focused one turn sideways toward it, smaller and
          darker, and pack in closer the further out they are, turning as the row scrolls. Can also be set with
          "cover_flow": true in a theme's config.json. -->

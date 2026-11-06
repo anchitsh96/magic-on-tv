@@ -656,6 +656,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ((TextView) findViewById(R.id.clock)).setTextSize(34f);
             View page = (View) wrap.getParent();
             page.setPadding(page.getPaddingLeft(), (int) (16 * density), page.getPaddingRight(), page.getPaddingBottom());
+            if (cfg.posterHeight < 80) prototypeHeader();
         }
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
         // Mirror only the app grid; the header and other locales keep their own layouts.
@@ -818,9 +819,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // The row in the middle of the room under the header, and side padding of half the screen less half
                 // a tile, so the first and last tiles can come to the centre as well. No bottom padding: the
                 // sideways row gives each item the full height under the top padding.
-                int tileH = AppAdapter.posterHeightPx(getResources().getDisplayMetrics().heightPixels, h, density);
+                int tileH = AppAdapter.posterHeightPx(getResources().getDisplayMetrics().heightPixels, h, density, cfg.posterHeight);
                 int posterItemH = tileH + (int) (16 * density);
                 want = Math.max(0, (h - posterItemH) / 2);
+                if (cfg.posterHeight < 80) {
+                    // The prototype's place: the tile's middle at 526 of 1080, a little above the screen's middle,
+                    // instead of the middle of the room under the header, which sat it low.
+                    int[] at = new int[2];
+                    grid.getLocationOnScreen(at);
+                    int screenH = getResources().getDisplayMetrics().heightPixels;
+                    want = Math.max(0, Math.round(screenH * 526f / 1080f - tileH / 2f) - at[1] - (int) (8 * density));
+                }
                 int itemW = AppAdapter.posterItemWidthPx(tileH, density);
                 left = right = Math.max(0, ((r - l) - itemW) / 2);
                 bottom = 0;
@@ -2380,6 +2389,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ambient.setAlpha(0f);
             heroArt.setAlpha(0f);
         }
+    }
+
+    /**
+     * poster_height below 80: the header at the design prototype's sizes, taken from the screen's height in pixels
+     * (prototype px on a 1080 canvas), not dp. A TV running 1920x1080 at density 320 draws dp twice over, so the
+     * header in dp came out 1.4 to 1.6 times the prototype's. Clock 64px, date 24px, greeting 19px, pills 58px.
+     */
+    private void prototypeHeader() {
+        float unit = getResources().getDisplayMetrics().heightPixels / 1080f;
+        ((TextView) findViewById(R.id.clock)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 64 * unit);
+        ((TextView) findViewById(R.id.ampm)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * unit);
+        ((TextView) findViewById(R.id.date)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 24 * unit);
+        greeting.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * unit);
+        // The pills keep their own layout (icons, Wi-Fi name, focus states) and are drawn smaller, pinned to the
+        // right edge and the middle of their row, so the header's right side stays aligned.
+        View bar = findViewById(R.id.topButtons);
+        float pill = 58 * unit;
+        View settings = findViewById(R.id.btnSettings);
+        bar.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            // Measured on the Settings pill itself, always shown: the row's first child can be a taller holder.
+            if (settings == null || settings.getHeight() == 0) return;
+            float s = Math.min(1f, pill / settings.getHeight());
+            v.setPivotX(v.getWidth());
+            v.setPivotY(v.getHeight() / 2f);
+            v.setScaleX(s);
+            v.setScaleY(s);
+        });
     }
 
     /**

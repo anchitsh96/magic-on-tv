@@ -178,19 +178,22 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** The smallest share of the width-only tile size that fitting rows_below_dock into the height may go to. */
     static final float MIN_HEIGHT_FIT = 0.85f;
 
-    /** poster_carousel: tile height as a share of the screen, width as a share of the height, and the gap between tiles. */
-    static final float POSTER_SCREEN_SHARE = 0.80f, POSTER_ASPECT = 0.5f, POSTER_GAP_DP = 14f;
+    /**
+     * poster_carousel: tile width as a share of its height, and the gap between tiles. The height is poster_height
+     * percent of the screen (Config).
+     */
+    static final float POSTER_ASPECT = 0.5f, POSTER_GAP_DP = 14f;
     /** poster_carousel: an unfocused tile's size and the black over it. */
     static final float POSTER_REST_SCALE = 0.9f, POSTER_DIM = 0.62f;
     /** poster_carousel: the item's padding above and below the tile (item_app.xml) plus room for the glass around it. */
     static final float POSTER_ROOM_DP = 8 + 8 + 12;
 
     /**
-     * poster_carousel: 80% of the screen high, or less where the room under the header is shorter (a big clock,
-     * the greeting), so the whole tile and its glass always show.
+     * poster_carousel: poster_height percent of the screen high, or less where the room under the header is shorter
+     * (a big clock, the greeting), so the whole tile and its glass always show.
      */
-    static int posterHeightPx(int screenHeightPx, int gridHeightPx, float density) {
-        int want = Math.round(screenHeightPx * POSTER_SCREEN_SHARE);
+    static int posterHeightPx(int screenHeightPx, int gridHeightPx, float density, int percent) {
+        int want = Math.round(screenHeightPx * percent / 100f);
         if (gridHeightPx <= 0) return want;
         return Math.max(Math.round(120 * density), Math.min(want, gridHeightPx - Math.round(POSTER_ROOM_DP * density)));
     }
@@ -221,6 +224,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean singleRow;
     /** config poster_carousel: tall tiles, the unfocused ones smaller and dimmed. */
     private final boolean poster;
+    /** config poster_height: the tiles' height in percent of the screen. */
+    private final int posterHeight;
     /** config cover_flow: CoverFlow places the poster tiles, so the focus change leaves their size and dimming alone. */
     private final boolean coverFlow;
     /** config centre_dock: the dock apps sit in the middle of the row, and Home starts at homePosition. */
@@ -282,6 +287,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.dockRow = cfg.dockRow;
         this.singleRow = cfg.singleRow;
         this.poster = cfg.posterCarousel;
+        this.posterHeight = cfg.posterHeight;
         this.coverFlow = cfg.coverFlow;
         this.centreDock = cfg.centreDock;
         this.restNameAlpha = cfg.alwaysShowNames ? 0.75f : 0f;
@@ -474,7 +480,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int inner = width - parent.getPaddingLeft() - parent.getPaddingRight();
         int w = tileWidthPx(inner, parent.getHeight(), dockSize, rowsBelowDock, dockTitle, dockRow, density), h = tileHeightPx(w);
         if (poster) {
-            h = posterHeightPx(parent.getResources().getDisplayMetrics().heightPixels, parent.getHeight(), density);
+            h = posterHeightPx(parent.getResources().getDisplayMetrics().heightPixels, parent.getHeight(), density, posterHeight);
             w = posterWidthPx(h);
         }
         View card = v.findViewById(R.id.card);

@@ -281,6 +281,8 @@ final class Config {
     final boolean dockBandAll;
     /** Tall tiles in one centred sideways row, the unfocused ones dimmed (config.xml, poster_carousel); implies single_row. */
     final boolean posterCarousel;
+    /** With poster_carousel, the tiles' height in percent of the screen (config.xml, poster_height). */
+    final int posterHeight;
     /** With poster_carousel, the side tiles turn toward the focused one (config.xml, cover_flow). */
     final boolean coverFlow;
     /** With poster_carousel, the dock apps in the middle of the row and Home starting on them (config.xml, centre_dock). */
@@ -308,8 +310,9 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
                    int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
                    boolean posterCarousel, boolean coverFlow, boolean centreDock, boolean homeWidgets, String widgetPinnedApp,
-                   boolean casualGreeting) {
+                   boolean casualGreeting, int posterHeight) {
         this.posterCarousel = posterCarousel;
+        this.posterHeight = Math.max(40, Math.min(90, posterHeight));
         this.casualGreeting = posterCarousel && casualGreeting;
         this.coverFlow = posterCarousel && coverFlow;
         this.homeWidgets = posterCarousel && homeWidgets;
@@ -568,6 +571,7 @@ final class Config {
         boolean homeWidgets = res.getBoolean(R.bool.home_widgets);
         String widgetPinnedApp = res.getString(R.string.widget_pinned_app).trim();
         boolean casualGreeting = res.getBoolean(R.bool.casual_greeting);
+        int posterHeight = res.getInteger(R.integer.poster_height);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -688,6 +692,7 @@ final class Config {
             homeWidgets = bool(json, "home_widgets", homeWidgets);
             widgetPinnedApp = string(json, "widget_pinned_app", widgetPinnedApp).trim();
             casualGreeting = bool(json, "casual_greeting", casualGreeting);
+            posterHeight = integer(json, "poster_height", posterHeight, 40, 90);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -763,7 +768,7 @@ final class Config {
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
-                posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting);
+                posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting, posterHeight);
     }
 
     /**
