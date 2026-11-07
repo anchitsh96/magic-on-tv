@@ -1,14 +1,14 @@
-# CleanYourTV, poster edition
+# Magic on TV
 
-> **This is a personal fork of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).**
+> **Magic on TV is a personal fork of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).**
 > Everything that makes the TV clean, from the debloat prompt and the safety rules to the restore scripts and the launcher
-> itself, is Gathin's work. This fork adds a redesigned home screen on the `poster-carousel` branch. The original
+> itself, is Gathin's work. Magic on TV adds a redesigned home screen on the `poster-carousel` branch. The original
 > README follows [below](#original-readme), unchanged.
 
 I'm Anchit, a product designer and co-founder of [FamApp](https://famapp.in). I wanted my Sony BRAVIA's home screen to feel
 like a streaming app rather than a settings menu: big posters, one thing in focus, and the music I was just listening
 to one click away. CleanYourTV already did the hard part, which was getting the ads and bloat off the TV safely, so I
-designed the home screen on top of its launcher.
+designed Magic on TV on top of its launcher.
 
 ## What I designed
 
@@ -94,7 +94,7 @@ The changes are in [`CoverFlow.java`](launcher/app/src/main/java/com/gathin/tvho
 [`MediaListener.java`](launcher/app/src/main/java/com/gathin/tvhome/MediaListener.java), plus additions to `MainActivity`,
 `AppAdapter` and `Config`.
 
-**Credit.** CleanYourTV is by [Gathin](https://github.com/Gathin23), MIT licensed, and this fork keeps that licence.
+**Credit.** CleanYourTV is by [Gathin](https://github.com/Gathin23), MIT licensed, and Magic on TV keeps that licence.
 The design and the launcher changes here were made with the help of Claude Code.
 
 ---
