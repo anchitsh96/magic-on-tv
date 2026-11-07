@@ -5,7 +5,7 @@
 > itself, is Gathin's work. Magic on TV adds a redesigned home screen on the `poster-carousel` branch. The original
 > README follows [below](#original-readme), unchanged.
 
-I'm Anchit, a product designer and co-founder of [FamApp](https://famapp.in). I wanted my Sony BRAVIA's home screen to feel
+I'm Anchit, a builder and part of the founding team at [Fam](https://famapp.in). I wanted my Sony BRAVIA's home screen to feel
 like a streaming app rather than a settings menu: big posters, one thing in focus, and the music I was just listening
 to one click away. CleanYourTV already did the hard part, which was getting the ads and bloat off the TV safely, so I
 designed Magic on TV on top of its launcher.
