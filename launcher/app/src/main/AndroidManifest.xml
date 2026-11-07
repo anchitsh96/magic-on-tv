@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- title_search only: looks up the words searched for in JustWatch's catalogue. Nothing else goes online. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- title_search only: listens for a title while the search panel is open, through the TV's speech recogniser. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Needed since Android 10 to read the Wi-Fi network name for the network pill. Never requested at
          runtime: build-and-install grants it with pm grant, so lint's Android 12 "ask for COARSE with
@@ -57,9 +59,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
         </intent>
-        <!-- title_search: the TV's voice input. -->
+        <!-- title_search: the TV's speech recogniser. -->
         <intent>
-            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+            <action android:name="android.speech.RecognitionService" />
         </intent>
         <!-- stock_home_redirect: HomeKeyService looks up the stock launcher's HOME activity. -->
         <intent>

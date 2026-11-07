@@ -1,5 +1,6 @@
 package com.gathin.tvhome;
 
+import android.Manifest;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
@@ -41,7 +42,6 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.speech.RecognizerIntent;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -104,8 +104,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
 
     private static final int LAUNCHER_SETTINGS_REQUEST = 42;
-    /** title_search: the TV's voice input, asked for a title. */
-    private static final int VOICE_REQUEST = 43;
+    /** title_search: the microphone, asked for once. */
+    private static final int MIC_REQUEST = 43;
     /** Sent by QuickSettingsActivity: open Launcher settings from here so Home rebuilds when they close. */
     static final String ACTION_LAUNCHER_SETTINGS = "com.gathin.tvhome.action.LAUNCHER_SETTINGS";
     /** Sent by the "library" action word of app_keys: open the App library over Home (needs app_library). */
@@ -800,21 +800,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.titleSearch) {
             search = new SearchPanel(this, new SearchPanel.Host() {
                 @Override
-                public boolean listen() {
-                    try {
-                        Intent voice = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                .putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.search_prompt));
-                        // Google TV sets carry two recognisers and Android would ask which to use every time:
-                        // the Google app's (the remote's own voice bar) when it is there.
-                        if (TitleSearch.isInstalled(getPackageManager(), "com.google.android.katniss")) {
-                            voice.setPackage("com.google.android.katniss");
-                        }
-                        startActivityForResult(voice, VOICE_REQUEST);
-                        return true;
-                    } catch (ActivityNotFoundException | SecurityException e) {
-                        return false;
-                    }
+                public void requestMic() {
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_REQUEST);
                 }
 
                 @Override
@@ -1361,14 +1348,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * reloaded) and then enters reorder mode. Every other change is picked up in onResume through the change count.
      */
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == MIC_REQUEST && search != null) {
+            search.micAnswered(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+        }
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == VOICE_REQUEST && search != null) {
-            java.util.ArrayList<String> heard = resultCode == RESULT_OK && data != null
-                    ? data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) : null;
-            search.heard(heard == null || heard.isEmpty() ? null : heard.get(0));
-            return;
-        }
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK
                 && data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false)) {
             getIntent().putExtra(LauncherSettingsActivity.EXTRA_REORDER, true);

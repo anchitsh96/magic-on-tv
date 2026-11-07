@@ -95,7 +95,10 @@
     <string name="search_pill">Search or say a title</string>
     <string name="search_pill_hint">OK to speak</string>
     <string name="search_prompt">Say a show, a film or a match</string>
+    <string name="search_listening">Listening</string>
     <string name="search_typing">Type a title</string>
+    <string name="search_didnt_catch">Didn\'t catch that</string>
+    <string name="search_try_again">Press OK on the mic to try again, or move up to type the title.</string>
     <string name="search_looking">Looking</string>
     <string name="search_on_apps">On %1$d of your apps</string>
     <string name="search_on_one_app">On one of your apps</string>
@@ -104,6 +107,7 @@
     <string name="search_offline">Couldn\'t reach the catalogue. Check the Wi-Fi and try again.</string>
     <string name="search_watch_on">Watch on</string>
     <string name="search_other_matches">Other matches</string>
+    <string name="search_recent">Recent searches</string>
     <string name="search_best_match">Best match</string>
     <string name="search_opens_show">Opens the show</string>
     <string name="search_opens_search">Opens its search</string>
