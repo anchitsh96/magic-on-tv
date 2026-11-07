@@ -45,6 +45,9 @@ final class WidgetColumn {
 
         /** A widget took focus: the row's highlight steps back. */
         void onWidgetFocused();
+
+        /** Down from the last card: to whatever sits under the column (title_search's pill); false when nothing does. */
+        boolean onWidgetsDown();
     }
 
     static final int COUNT = 3;
@@ -153,6 +156,12 @@ final class WidgetColumn {
             Card c = cards[(lastFocused + i) % COUNT];
             if (c.root.isFocusable() && c.root.requestFocus()) return true;
         }
+        return false;
+    }
+
+    /** Focus the lowest card that takes focus (Up from the search pill under the column). */
+    boolean focusLast() {
+        for (int i = COUNT - 1; i >= 0; i--) if (cards[i].root.isFocusable() && cards[i].root.requestFocus()) return true;
         return false;
     }
 
@@ -300,8 +309,13 @@ final class WidgetColumn {
                     return true;
                 }
                 if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return true;
-                // Down from the last card has nowhere to go; Up from the first leaves for the top bar.
-                return keyCode == KeyEvent.KEYCODE_DPAD_DOWN && index == COUNT - 1;
+                // Down from the last card goes to the search pill when there is one, else nowhere; Up from the
+                // first leaves for the top bar.
+                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && index == COUNT - 1) {
+                    host.onWidgetsDown();
+                    return true;
+                }
+                return false;
             });
         }
 

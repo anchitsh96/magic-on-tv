@@ -91,6 +91,34 @@
     <string name="widget_continue">Continue</string>
     <string name="widget_hint_music">OK play or pause · Hold OK to open</string>
     <string name="widget_hint_video">OK to resume · Hold OK to open</string>
+    <!-- title_search: the pill under the widgets, and the panel it opens. -->
+    <string name="search_pill">Search or say a title</string>
+    <string name="search_pill_hint">OK to speak</string>
+    <string name="search_prompt">Say a show, a film or a match</string>
+    <string name="search_listening">Listening</string>
+    <string name="search_typing">Type a title</string>
+    <string name="search_looking">Looking</string>
+    <string name="search_on_apps">On %1$d of your apps</string>
+    <string name="search_on_one_app">On one of your apps</string>
+    <string name="search_not_on_apps">Not on your apps</string>
+    <string name="search_not_found">Couldn\'t find \u201C%1$s\u201D on your apps. Search for it in one of these instead:</string>
+    <string name="search_offline">Couldn\'t reach the catalogue. Check the Wi-Fi and try again.</string>
+    <string name="search_watch_on">Watch on</string>
+    <string name="search_other_matches">Other matches</string>
+    <string name="search_best_match">Best match</string>
+    <string name="search_opens_show">Opens the show</string>
+    <string name="search_opens_search">Opens its search</string>
+    <string name="search_opens_app">Opens the app</string>
+    <string name="search_youtube_terms">Clips and trailers</string>
+    <string name="search_movie">Film</string>
+    <string name="search_show">Series</string>
+    <string-array name="title_search_terms">
+        <item>Included with your plan</item>
+        <item>Free</item>
+        <item>Free with ads</item>
+        <item>Rent</item>
+        <item>Buy</item>
+    </string-array>
     <string name="widget_empty_title">Nothing played yet</string>
     <string name="widget_empty_subtitle">What you play shows up here</string>
     <string name="card_prompt_title">New card from %1$s</string>

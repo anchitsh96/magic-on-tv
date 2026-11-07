@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -293,6 +294,10 @@ final class Config {
     final String widgetPinnedApp;
     /** With poster_carousel, a new conversational greeting each time, above the date (config.xml, casual_greeting). */
     final boolean casualGreeting;
+    /** With poster_carousel, the search pill under the widgets: say a title, see which app has it (config.xml, title_search). */
+    final boolean titleSearch;
+    /** The country whose streaming catalogue title_search looks in, as two letters (config.xml, title_search_country). */
+    final String titleSearchCountry;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -310,8 +315,10 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
                    int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
                    boolean posterCarousel, boolean coverFlow, boolean centreDock, boolean homeWidgets, String widgetPinnedApp,
-                   boolean casualGreeting, int posterHeight) {
+                   boolean casualGreeting, int posterHeight, boolean titleSearch, String titleSearchCountry) {
         this.posterCarousel = posterCarousel;
+        this.titleSearch = posterCarousel && titleSearch;
+        this.titleSearchCountry = titleSearchCountry;
         this.posterHeight = Math.max(40, Math.min(90, posterHeight));
         this.casualGreeting = posterCarousel && casualGreeting;
         this.coverFlow = posterCarousel && coverFlow;
@@ -571,6 +578,8 @@ final class Config {
         boolean homeWidgets = res.getBoolean(R.bool.home_widgets);
         String widgetPinnedApp = res.getString(R.string.widget_pinned_app).trim();
         boolean casualGreeting = res.getBoolean(R.bool.casual_greeting);
+        boolean titleSearch = res.getBoolean(R.bool.title_search);
+        String titleSearchCountry = res.getString(R.string.title_search_country).trim();
         int posterHeight = res.getInteger(R.integer.poster_height);
         boolean applied = false;
 
@@ -692,6 +701,8 @@ final class Config {
             homeWidgets = bool(json, "home_widgets", homeWidgets);
             widgetPinnedApp = string(json, "widget_pinned_app", widgetPinnedApp).trim();
             casualGreeting = bool(json, "casual_greeting", casualGreeting);
+            titleSearch = bool(json, "title_search", titleSearch);
+            titleSearchCountry = string(json, "title_search_country", titleSearchCountry).trim();
             posterHeight = integer(json, "poster_height", posterHeight, 40, 90);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
@@ -768,7 +779,8 @@ final class Config {
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
-                posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting, posterHeight);
+                posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting, posterHeight,
+                titleSearch, titleSearchCountry.matches("[A-Za-z]{2}") ? titleSearchCountry.toUpperCase(Locale.ROOT) : "IN");
     }
 
     /**

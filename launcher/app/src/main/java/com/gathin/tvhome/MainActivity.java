@@ -41,6 +41,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -103,6 +104,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
 
     private static final int LAUNCHER_SETTINGS_REQUEST = 42;
+    /** title_search: the TV's voice input, asked for a title. */
+    private static final int VOICE_REQUEST = 43;
     /** Sent by QuickSettingsActivity: open Launcher settings from here so Home rebuilds when they close. */
     static final String ACTION_LAUNCHER_SETTINGS = "com.gathin.tvhome.action.LAUNCHER_SETTINGS";
     /** Sent by the "library" action word of app_keys: open the App library over Home (needs app_library). */
@@ -267,6 +270,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean poster;
     /** config home_widgets: the now-playing column left of the poster row; null when off. */
     private WidgetColumn widgets;
+    /** config title_search: the search pill under the widgets and its panel; null when off. */
+    private SearchPanel search;
     /** poster_carousel: the soft light in the focused app's colour behind its tile; null otherwise. */
     private View tileGlow;
     private int tileGlowColor;
@@ -781,13 +786,59 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
                 @Override
                 public void onWidgetFocused() {
-                    hideGlass();
-                    // The tile stays lit but steps back: its glow dims with the highlight gone.
-                    if (tileGlow != null) tileGlow.animate().alpha(0.35f).setDuration(200).start();
+                    stepBackFromRow();
+                }
+
+                @Override
+                public boolean onWidgetsDown() {
+                    return search != null && search.pill.requestFocus();
                 }
             }, cfg.widgetPinnedApp, widgetLeaveOut(cfg));
             // Above the row in the same frame, so tiles folding left pass behind it.
             ((ViewGroup) grid.getParent()).addView(widgets.view, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
+        }
+        if (cfg.titleSearch) {
+            search = new SearchPanel(this, new SearchPanel.Host() {
+                @Override
+                public boolean listen() {
+                    try {
+                        Intent voice = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                .putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.search_prompt));
+                        // Google TV sets carry two recognisers and Android would ask which to use every time:
+                        // the Google app's (the remote's own voice bar) when it is there.
+                        if (TitleSearch.isInstalled(getPackageManager(), "com.google.android.katniss")) {
+                            voice.setPackage("com.google.android.katniss");
+                        }
+                        startActivityForResult(voice, VOICE_REQUEST);
+                        return true;
+                    } catch (ActivityNotFoundException | SecurityException e) {
+                        return false;
+                    }
+                }
+
+                @Override
+                public void onPillUp() {
+                    if (widgets == null || !widgets.focusLast()) focusTile(lastFocused);
+                }
+
+                @Override
+                public void onPillRight() {
+                    focusTile(lastFocused);
+                }
+
+                @Override
+                public void onPillFocused() {
+                    stepBackFromRow();
+                }
+
+                @Override
+                public void onClosed() {
+                    search.pill.requestFocus();
+                }
+            }, cfg.titleSearchCountry);
+            ((ViewGroup) grid.getParent()).addView(search.pill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
+            root.addView(search.panel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         if (cfg.coverFlow) CoverFlow.attach(grid, cfg.homeWidgets);
 
@@ -844,6 +895,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     right = Math.max(0, (r - l) - left - itemW);
                     int colTop = want + (int) (8 * density);
                     grid.post(() -> placeWidgets(colLeft, colTop, colW, tileH));
+                }
+                if (search != null) {
+                    // title_search: the pill under the widget column, as wide as its cards (under the row's left end
+                    // without widgets).
+                    int pillLeft = (int) (56 * density);
+                    int pillW = Math.round(tileH * 0.758f);
+                    int tileTop = want + (int) (8 * density);
+                    grid.post(() -> placeSearchPill(pillLeft, tileTop, pillW, tileH));
                 }
                 grid.post(this::placeTileGlow);
             }
@@ -1183,6 +1242,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLibraryIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
+        if (search != null) search.close();
         if (gameDay != null && !stopped) gameDay.read();
         // Home goes back to the first dock app: the first tile, or the middle of the row with centre_dock.
         final int home = adapter.homePosition();
@@ -1303,6 +1363,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == VOICE_REQUEST && search != null) {
+            java.util.ArrayList<String> heard = resultCode == RESULT_OK && data != null
+                    ? data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) : null;
+            search.heard(heard == null || heard.isEmpty() ? null : heard.get(0));
+            return;
+        }
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK
                 && data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false)) {
             getIntent().putExtra(LauncherSettingsActivity.EXTRA_REORDER, true);
@@ -1914,6 +1980,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        if (search != null && search.isOpen()) {
+            search.close();
+            return;
+        }
         // Home screen: Back goes nowhere, unless back_opens_clock is on.
         if (backOpensClock) startActivity(new Intent(this, ClockActivity.class));
     }
@@ -2505,6 +2575,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         widgets.size(width, height);
     }
 
+    /** title_search: the pill under the tiles, a gap below them (the prototype's 36px under a 660px tile). */
+    private void placeSearchPill(int left, int tileTop, int width, int tileH) {
+        View item = grid.getChildCount() > 0 ? grid.getChildAt(0) : null;
+        View card = item == null ? null : item.findViewById(R.id.card);
+        if (card != null && card.getHeight() > 0) {
+            tileTop = grid.getTop() + item.getTop() + card.getTop();
+            tileH = card.getHeight();
+        }
+        search.sizePill(width, tileH);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) search.pill.getLayoutParams();
+        int top = tileTop + tileH + Math.round(tileH * 0.055f);
+        if (lp.leftMargin == left && lp.topMargin == top) return;
+        lp.leftMargin = left;
+        lp.topMargin = top;
+        search.pill.setLayoutParams(lp);
+    }
+
+    /** Focus left the row for a widget or the search pill: the tile stays lit but steps back, its glow dimmed. */
+    private void stepBackFromRow() {
+        hideGlass();
+        if (tileGlow != null) tileGlow.animate().alpha(0.35f).setDuration(200).start();
+    }
+
     private void hideGlass() {
         if (!glassShown) return;
         glassShown = false;
@@ -2701,7 +2794,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // One row: Up leaves for the top bar, Down has nowhere to go, and Left/Right walk the whole row,
             // stopping at its two ends (the default focus search scrolls the row to the next tile).
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return false;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) return true;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (search != null) search.pill.requestFocus();
+                return true;
+            }
             boolean forward = rtlAppGrid ? keyCode == KeyEvent.KEYCODE_DPAD_LEFT : keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
             int last = adapter.focusablePosition(count - 1);
             if (forward && position >= last) {

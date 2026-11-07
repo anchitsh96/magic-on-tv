@@ -29,6 +29,11 @@ channel and a progress bar, and the music card has moving equaliser bars while a
 play or pause without leaving Home, or hold OK to open the app. On the other cards, OK resumes the app. The widgets
 read media sessions on the TV itself; nothing goes over the network.
 
+**Search that knows your apps.** A glass pill under the widgets. Press OK and say a title (or type it), and it shows
+which of your apps has it, using JustWatch's catalogue for India. Each app opens as far as it allows: Netflix, Apple TV,
+Prime Video and JioHotstar go straight to the show, YouTube to its search, and Sony LIV just opens. I tested every app's
+links on the TV first; Netflix only follows a link sent the way TV makers' home screens send it.
+
 **A friendlier header.** The time, a short rotating greeting ("Hey, welcome back", "What are we watching?") and the
 date, with Inputs, Wi-Fi and Settings as pills on the right. Sizes follow the prototype at 1080p.
 
@@ -73,6 +78,7 @@ All of this is off by default and switched on by a theme `config.json`, pushed w
   "home_widgets": true,
   "widget_pinned_app": "com.spotify.tv.android",
   "casual_greeting": true,
+  "title_search": true,
   "glass_style": "rim",
   "dock_apps": ["com.google.android.youtube.tv", "com.netflix.ninja", "in.startv.hotstar",
                 "com.apple.atve.sony.appletv", "com.sonyliv", "com.spotify.tv.android"]

@@ -340,6 +340,14 @@
          set with "casual_greeting": true in a theme's config.json. -->
     <bool name="casual_greeting">false</bool>
     <string name="widget_pinned_app" translatable="false">com.spotify.tv.android</string>
+    <!-- With poster_carousel, a search pill under the widgets (or under the row's left end without them): OK opens
+         the TV's voice input, or type a title, and it shows which of your apps has it, from JustWatch's catalogue
+         for title_search_country. Choosing an app opens it as far as that app allows: the show itself (Netflix,
+         Apple TV, Prime Video, JioHotstar), its own search (YouTube), or just the app (Sony LIV). Adds the INTERNET
+         permission, used only to look up what you search for; nothing else is sent. Can also be set with
+         "title_search": true and "title_search_country" in a theme's config.json. -->
+    <bool name="title_search">false</bool>
+    <string name="title_search_country" translatable="false">IN</string>
     <!-- The dock band's padding equals the gap between its tiles on all four sides (as far as the grid's edges leave room),
          so its corners are concentric with the tiles' and the spacing reads even. false (the default) keeps the fixed
          14dp above and below, up to 22dp at the sides and 26dp corners. Can also be set with "dock_even_padding": true in a theme's config.json. -->
