@@ -106,6 +106,11 @@
     <string name="search_not_found">Couldn\'t find \u201C%1$s\u201D on your apps. Search for it in one of these instead:</string>
     <string name="search_offline">Couldn\'t reach the catalogue. Check the Wi-Fi and try again.</string>
     <string name="search_watch_on">Watch on</string>
+    <string name="search_look_for_it">Look for it on</string>
+    <string name="search_not_listed">Not listed on your apps yet</string>
+    <string name="search_in_cinemas">In cinemas</string>
+    <string name="search_find_it">Search for it</string>
+    <string name="search_look_there">Look for it there</string>
     <string name="search_other_matches">Other matches</string>
     <string name="search_recent">Recent searches</string>
     <string name="search_best_match">Best match</string>

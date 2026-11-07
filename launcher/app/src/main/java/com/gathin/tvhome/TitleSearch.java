@@ -64,11 +64,15 @@ final class TitleSearch {
     static final class Title {
         String title = "", kind = "", description = "", poster = "";
         int year;
+        /** Listed at cinemas (ticketing services), whatever the streaming apps have. */
+        boolean inCinemas;
         final List<Offer> offers = new ArrayList<>();
     }
 
     /** Terms an app offers a title on, best first; the index into R.array.title_search_terms. */
     static final int INCLUDED = 0, FREE = 1, ADS = 2, RENT = 3, BUY = 4;
+    /** Not listed there: only a place to look for the title (lookFor). */
+    static final int LOOK = -1;
 
     private TitleSearch() { }
 
@@ -99,6 +103,46 @@ final class TitleSearch {
             default:
                 return null;
         }
+    }
+
+    /** JustWatch's ticketing services: a title they list is showing at cinemas. */
+    static boolean isCinema(String technicalName) {
+        switch (technicalName) {
+            case "cinepolisindia":
+            case "district":
+            case "ticketnew":
+            case "bookmyshow":
+            case "pvrcinemas":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Whether a title is the one asked for, ignoring case, punctuation and spacing ("Hanu-Man" is "hanuman"): then it
+     * is shown even when no app on the TV is listed for it, rather than skipped for a later match that is.
+     */
+    static boolean matches(String title, String words) {
+        String a = fold(title), b = fold(words);
+        return !a.isEmpty() && !b.isEmpty() && (a.equals(b) || a.startsWith(b) || b.startsWith(a));
+    }
+
+    private static String fold(String s) {
+        return s.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    /**
+     * Where to look for a title the catalogue lists on none of the TV's apps (new releases reach it late): the
+     * searches that take the words (YouTube, Prime Video), then the Indian apps that only open (Sony LIV, JioHotstar).
+     */
+    static List<Offer> lookFor(PackageManager pm) {
+        List<Offer> out = new ArrayList<>();
+        if (isInstalled(pm, YOUTUBE)) out.add(new Offer(YOUTUBE, SEARCH, "", LOOK));
+        if (isInstalled(pm, PRIME)) out.add(new Offer(PRIME, SEARCH, "", LOOK));
+        if (isInstalled(pm, SONY_LIV)) out.add(new Offer(SONY_LIV, APP, "", LOOK));
+        if (isInstalled(pm, HOTSTAR)) out.add(new Offer(HOTSTAR, APP, "", LOOK));
+        return out;
     }
 
     /** How far an app opens a title: Sony LIV ignores links, and the rest open the title's own page. */
@@ -187,7 +231,9 @@ final class TitleSearch {
             JSONArray offers = node.optJSONArray("offers");
             for (int k = 0; offers != null && k < offers.length(); k++) {
                 JSONObject o = offers.getJSONObject(k);
-                String pkg = packageFor(o.getJSONObject("package").optString("technicalName"));
+                String service = o.getJSONObject("package").optString("technicalName");
+                if (isCinema(service)) t.inCinemas = true;
+                String pkg = packageFor(service);
                 if (pkg == null) continue;
                 pkg = installed(pm, pkg);
                 if (pkg == null) continue;

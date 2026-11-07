@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -55,5 +56,21 @@ public class TitleSearchTest {
                 TitleSearch.youtubeSearchUrl("india vs new zealand"));
         assertEquals("https://app.primevideo.com/search?phrase=kota%20factory%20%26%20more",
                 TitleSearch.primeSearchUrl("kota factory & more"));
+    }
+
+    @Test
+    public void theTitleAskedForIsKnownDespitePunctuationAndCase() {
+        assertTrue(TitleSearch.matches("Hanuman Ansh", "hanuman ansh"));
+        assertTrue(TitleSearch.matches("Hanu-Man", "hanuman"));
+        assertTrue(TitleSearch.matches("Kota Factory", "kota factory season 3"));
+        assertFalse(TitleSearch.matches("The Legend of Hanuman", "hanuman ansh"));
+        assertFalse(TitleSearch.matches("", "anything"));
+    }
+
+    @Test
+    public void ticketingServicesMeanCinemas() {
+        assertTrue(TitleSearch.isCinema("district"));
+        assertTrue(TitleSearch.isCinema("cinepolisindia"));
+        assertFalse(TitleSearch.isCinema("sonyliv"));
     }
 }

@@ -112,6 +112,7 @@ final class SearchPanel {
     private final ImageView poster;
     private final TextView title, meta, description;
     private final LinearLayout where;
+    private final TextView watchOn;
     private final LinearLayout bottom;
     private final TextView bottomHead;
     private final LinearLayout bottomChips;
@@ -295,7 +296,7 @@ final class SearchPanel {
         description.setMaxLines(2);
         description.setLineSpacing(0, 1.45f);
         facts.addView(description, margins(px(900), px(16), 0));
-        TextView watchOn = caps();
+        watchOn = caps();
         watchOn.setText(R.string.search_watch_on);
         facts.addView(watchOn, margins(ViewGroup.LayoutParams.WRAP_CONTENT, px(36), 0));
         where = row();
@@ -537,7 +538,12 @@ final class SearchPanel {
                     return;
                 }
                 titles = new ArrayList<>();
-                for (TitleSearch.Title t : answer) if (!t.offers.isEmpty()) titles.add(t);
+                // The title asked for comes first even when no app here is listed for it (a new release the
+                // catalogue has not caught up with); otherwise only titles some app here has.
+                for (int i = 0; i < answer.size(); i++) {
+                    TitleSearch.Title t = answer.get(i);
+                    if (!t.offers.isEmpty() || (i == 0 && TitleSearch.matches(t.title, q))) titles.add(t);
+                }
                 if (titles.isEmpty()) {
                     nothingFound(q);
                     return;
@@ -564,11 +570,16 @@ final class SearchPanel {
     /** Shows one of the titles found, with the others along the bottom to switch to. */
     private void show(int index) {
         TitleSearch.Title t = titles.get(index);
-        int n = t.offers.size();
-        state.setText(n == 1 ? ctx.getString(R.string.search_on_one_app) : ctx.getString(R.string.search_on_apps, n));
+        boolean listed = !t.offers.isEmpty();
+        List<TitleSearch.Offer> offers = listed ? t.offers : TitleSearch.lookFor(pm);
+        int n = offers.size();
+        state.setText(!listed ? ctx.getString(R.string.search_not_listed)
+                : n == 1 ? ctx.getString(R.string.search_on_one_app) : ctx.getString(R.string.search_on_apps, n));
+        watchOn.setText(listed ? R.string.search_watch_on : R.string.search_look_for_it);
         title.setText(t.title);
         String kind = ctx.getString("MOVIE".equals(t.kind) ? R.string.search_movie : R.string.search_show);
-        meta.setText(t.year > 0 ? t.year + " · " + kind : kind);
+        String when = t.year > 0 ? t.year + " · " + kind : kind;
+        meta.setText(t.inCinemas ? when + " · " + ctx.getString(R.string.search_in_cinemas) : when);
         description.setText(t.description);
         description.setVisibility(t.description.isEmpty() ? View.GONE : View.VISIBLE);
         int pw = px(250), ph = px(375);
@@ -581,11 +592,15 @@ final class SearchPanel {
             });
         });
         where.removeAllViews();
-        for (int i = 0; i < n; i++) where.addView(offerButton(t.offers.get(i), i == 0), gap(18));
+        for (int i = 0; i < n; i++) where.addView(offerButton(offers.get(i), listed && i == 0), gap(18));
         boolean hasYoutube = false;
-        for (TitleSearch.Offer o : t.offers) hasYoutube |= TitleSearch.YOUTUBE.equals(o.pkg);
+        for (TitleSearch.Offer o : offers) hasYoutube |= TitleSearch.YOUTUBE.equals(o.pkg);
         if (!hasYoutube && TitleSearch.isInstalled(pm, TitleSearch.YOUTUBE)) where.addView(offerButton(TitleSearch.youtube(), false), gap(18));
-        setHue(appColor(t.offers.get(0).pkg));
+        setHue(listed ? appColor(offers.get(0).pkg) : 0xFF555555);
+        if (where.getChildCount() == 0) {
+            nothingFound(words);
+            return;
+        }
         view(resultView);
 
         List<String> labels = new ArrayList<>();
@@ -672,7 +687,8 @@ final class SearchPanel {
         b.setFocusable(true);
         b.setClickable(true);
         b.setPadding(px(18), px(16), px(30), px(16));
-        b.setMinimumWidth(px(330));
+        // The prototype's 330px buttons; places to look come four at a time, so they take only what they need.
+        b.setMinimumWidth(o.terms == TitleSearch.LOOK ? 0 : px(330));
         b.setMinimumHeight(px(104));
         b.setBackground(offerBackground(color));
         ImageView icon = new ImageView(ctx);
@@ -707,7 +723,8 @@ final class SearchPanel {
         // Wrap, not the vertical layout's default match_parent, so the name and its tag widen the button.
         text.addView(nameRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         TextView terms = label(R.string.font_regular, MUTED, 18);
-        terms.setText(TitleSearch.YOUTUBE.equals(o.pkg) ? ctx.getString(R.string.search_youtube_terms)
+        terms.setText(o.terms == TitleSearch.LOOK ? ctx.getString(o.how == TitleSearch.SEARCH ? R.string.search_find_it : R.string.search_look_there)
+                : TitleSearch.YOUTUBE.equals(o.pkg) ? ctx.getString(R.string.search_youtube_terms)
                 : ctx.getResources().getStringArray(R.array.title_search_terms)[o.terms]);
         text.addView(terms, margins(ViewGroup.LayoutParams.WRAP_CONTENT, px(3), 0));
         TextView how = label(R.string.font_medium, howColor(o.how), 15);
