@@ -5,10 +5,14 @@
 > itself, is Gathin's work. Magic on TV adds a redesigned home screen on the `poster-carousel` branch. The original
 > README follows [below](#original-readme), unchanged.
 
-I'm Anchit, a builder and part of the founding team at [Fam](https://famapp.in). I wanted my Sony BRAVIA's home screen to feel
-like a streaming app rather than a settings menu: big posters, one thing in focus, and the music I was just listening
-to one click away. CleanYourTV already did the hard part, which was getting the ads and bloat off the TV safely, so I
-designed Magic on TV on top of its launcher.
+I'm Anchit, a builder and part of the founding team at [Fam](https://famapp.in). CleanYourTV came up in one of our office
+discussions, and it got me thinking about my own Sony BRAVIA. Its home screen was just too much: ads, sponsored rows,
+apps I never opened. CleanYourTV already did the hard part, getting the bloat off the TV safely, so I designed my own
+home screen on top of its launcher, with interactions that are fun to play with.
+
+Then I took on a problem I actually have. You sit down with friends to watch something, and spend the next few minutes
+working out where it is: Netflix, not there; Prime, no; someone Googles it on their phone. So Magic on TV can search:
+say a title, see which of your apps has it, and open it there.
 
 ## What I designed
 
@@ -29,10 +33,13 @@ channel and a progress bar, and the music card has moving equaliser bars while a
 play or pause without leaving Home, or hold OK to open the app. On the other cards, OK resumes the app. The widgets
 read media sessions on the TV itself; nothing goes over the network.
 
-**Search that knows your apps.** A glass pill under the widgets. Press OK and say a title (or type it), and it shows
-which of your apps has it, using JustWatch's catalogue for India. Each app opens as far as it allows: Netflix, Apple TV,
-Prime Video and JioHotstar go straight to the show, YouTube to its search, and Sony LIV just opens. I tested every app's
-links on the TV first; Netflix only follows a link sent the way TV makers' home screens send it.
+**Search that knows your apps.** A glass pill under the widgets. Press OK and a panel opens over the blurred home
+screen, already listening: a white mic with a pulsing ring, and bars that rise with your voice. Say a title (or hold
+OK on the pill to type one) and it shows the best match with its poster, the apps on your TV that have it, and other
+matches to switch to. It uses JustWatch's catalogue for India. Each app opens as far as it allows, and each button says
+which: "Opens the show" for Netflix, Apple TV, Prime Video and JioHotstar, "Opens its search" for YouTube, and "Opens
+the app" for Sony LIV. A new release the catalogue only lists at cinemas still shows as the match, marked "Not listed
+on your apps yet", with places to look for it.
 
 **A friendlier header.** The time, a short rotating greeting ("Hey, welcome back", "What are we watching?") and the
 date, with Inputs, Wi-Fi and Settings as pills on the right. Sizes follow the prototype at 1080p.
@@ -40,7 +47,8 @@ date, with Inputs, Wi-Fi and Settings as pills on the right. Sizes follow the pr
 ### How I worked
 
 1. **Prototype first.** I built an HTML prototype of the carousel at TV resolution, tuned the tile proportions and
-   gradients there, then compared four 3D directions side by side before picking Cover Flow.
+   gradients there, then compared four 3D directions side by side before picking Cover Flow. Search got its own
+   prototype too, and the panel on the TV is sized in the prototype's pixels.
 2. **Port to the launcher.** I brought each piece into the Android launcher as an option that is off by default, so
    the stock CleanYourTV home is untouched unless a theme turns the new look on.
 3. **Tune on the real TV.** Each change went onto the BRAVIA, and I compared it against the prototype: the angle of
@@ -60,6 +68,21 @@ date, with Inputs, Wi-Fi and Settings as pills on the right. Sizes follow the pr
   than view alpha, and hide their labels. That brought slow frames down to about 2%.
 - **A 4K panel at 1080p looks zoomed in.** The TV renders the UI at 1920×1080 with a high density, so sizes in dp came
   out 1.4 to 1.6 times larger than in the prototype. The header now sizes from the screen height instead.
+- **Every streaming app opens links its own way.** I sent each one search and show links over ADB before building
+  search, with the app closed and with it open:
+
+  | App | Its search, title filled in | A show, directly |
+  |---|---|---|
+  | YouTube | ✅ | – |
+  | Prime Video | ✅ even after the profile picker | ✅ |
+  | Netflix | ❌ goes home, or closes | ✅ only when sent the way TV makers' launchers send it |
+  | Apple TV | opens search, empty | ✅ even after the profile picker |
+  | JioHotstar | opens Search, blank | ✅ (starts playing where you left off) |
+  | Sony LIV | ❌ | ❌ ignores every link; opens the app only |
+
+- **Listening without an overlay.** Asking Android for voice input brings up Google's own voice bar, which sat on
+  top of the panel. The panel listens through the TV's speech recogniser directly instead, so the whole interaction
+  is Magic on TV's own; that needs the microphone permission, asked for once.
 - **Not every app shares what's playing.** YouTube and Spotify publish titles and artwork to the system, Netflix
   publishes nothing, and Android's Watch Next row is closed to third-party launchers, which is why the widgets use
   media sessions.
@@ -94,10 +117,16 @@ media sessions:
 adb shell cmd notification allow_listener com.gathin.tvhome/com.gathin.tvhome.MediaListener
 ```
 
+Search adds two permissions to the launcher, both used only by search: `INTERNET` for the lookup (the words you search
+for go to JustWatch, nothing else is sent), and `RECORD_AUDIO`, used only while the search panel is listening. The TV asks
+for the microphone the first time you press OK on the pill. Leave out `title_search` and neither is used.
+
 The changes are in [`CoverFlow.java`](launcher/app/src/main/java/com/gathin/tvhome/CoverFlow.java),
 [`WidgetColumn.java`](launcher/app/src/main/java/com/gathin/tvhome/WidgetColumn.java),
-[`NowPlaying.java`](launcher/app/src/main/java/com/gathin/tvhome/NowPlaying.java) and
-[`MediaListener.java`](launcher/app/src/main/java/com/gathin/tvhome/MediaListener.java), plus additions to `MainActivity`,
+[`NowPlaying.java`](launcher/app/src/main/java/com/gathin/tvhome/NowPlaying.java),
+[`MediaListener.java`](launcher/app/src/main/java/com/gathin/tvhome/MediaListener.java),
+[`SearchPanel.java`](launcher/app/src/main/java/com/gathin/tvhome/SearchPanel.java) and
+[`TitleSearch.java`](launcher/app/src/main/java/com/gathin/tvhome/TitleSearch.java), plus additions to `MainActivity`,
 `AppAdapter` and `Config`.
 
 **Credit.** CleanYourTV is by [Gathin](https://github.com/Gathin23), MIT licensed, and Magic on TV keeps that licence.
