@@ -1,3 +1,106 @@
+# CleanYourTV, poster edition
+
+> **This is a personal fork of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv).**
+> Everything that makes the TV clean, from the debloat prompt and the safety rules to the restore scripts and the launcher
+> itself, is Gathin's work. This fork adds a redesigned home screen on the `poster-carousel` branch. The original
+> README follows [below](#original-readme), unchanged.
+
+I'm Anchit, a product designer and co-founder of [FamApp](https://famapp.in). I wanted my Sony BRAVIA's home screen to feel
+like a streaming app rather than a settings menu: big posters, one thing in focus, and the music I was just listening
+to one click away. CleanYourTV already did the hard part, which was getting the ads and bloat off the TV safely, so I
+designed the home screen on top of its launcher.
+
+## What I designed
+
+**Tall poster tiles in one row.** Every app is a portrait card about 61% of the screen's height, in a single
+horizontal row. The focused card is full size and lit, and the rest step back and dim. Each card is the app's own
+colour as a soft two-glow gradient on a dark base, with the icon on top, and a coloured glow behind the focused card
+picks up its colour.
+
+**Cover Flow.** I mocked up four ways for the row to move in 3D before building one. Cover Flow won: the cards beside
+the focused one turn 45° away from it and tuck under it, like records in a crate, so you can still read every icon.
+
+**Favourites in the middle.** Home opens on the middle of the row, with my streaming apps (YouTube, Netflix,
+JioHotstar, Apple TV, Sony LIV, Spotify) at the centre and everything else spread to either side.
+
+**Now-playing widgets.** A column of three cards on the left shows what was last playing: Spotify is always on top,
+followed by the two most recently used apps, such as a YouTube video. Each card shows the artwork, title, artist or
+channel and a progress bar, and the music card has moving equaliser bars while a song plays. Press OK on Spotify to
+play or pause without leaving Home, or hold OK to open the app. On the other cards, OK resumes the app. The widgets
+read media sessions on the TV itself; nothing goes over the network.
+
+**A friendlier header.** The time, a short rotating greeting ("Hey, welcome back", "What are we watching?") and the
+date, with Inputs, Wi-Fi and Settings as pills on the right. Sizes follow the prototype at 1080p.
+
+### How I worked
+
+1. **Prototype first.** I built an HTML prototype of the carousel at TV resolution, tuned the tile proportions and
+   gradients there, then compared four 3D directions side by side before picking Cover Flow.
+2. **Port to the launcher.** I brought each piece into the Android launcher as an option that is off by default, so
+   the stock CleanYourTV home is untouched unless a theme turns the new look on.
+3. **Tune on the real TV.** Each change went onto the BRAVIA, and I compared it against the prototype: the angle of
+   the side tiles, the glow strength, the widget alignment, and the overall scale.
+
+## What I learned on a Sony BRAVIA (VH22, Android 12)
+
+- **The stock home screen has to stay.** On this model, the Google TV home and Sony's setup app can't be disabled
+  without breaking Home or the saved Wi-Fi, so the repo's "redirect route" leaves them enabled and an accessibility
+  service sends the Home button to CleanYourTV instead. On a cold boot the Google TV home sometimes shows first, and
+  one press of Home fixes it.
+- **Debloating was easy to undo.** 31 packages were disabled in three batches (tracking, promotions, then background
+  services), with a reboot and a check of every remote button after each. Nothing was uninstalled, and a backup was
+  taken first.
+- **3D on a TV chip needs care.** The first Cover Flow build dropped 94% of frames. Clipping turned tiles to rounded
+  corners was the cost, so turned tiles now draw rounded artwork instead of clipping, dim through a drawable rather
+  than view alpha, and hide their labels. That brought slow frames down to about 2%.
+- **A 4K panel at 1080p looks zoomed in.** The TV renders the UI at 1920×1080 with a high density, so sizes in dp came
+  out 1.4 to 1.6 times larger than in the prototype. The header now sizes from the screen height instead.
+- **Not every app shares what's playing.** YouTube and Spotify publish titles and artwork to the system, Netflix
+  publishes nothing, and Android's Watch Next row is closed to third-party launchers, which is why the widgets use
+  media sessions.
+
+## Turning it on
+
+All of this is off by default and switched on by a theme `config.json`, pushed with
+[`tools/theme.sh`](tools/theme.sh) like any other theme. Here are the keys I use:
+
+```json
+{
+  "poster_carousel": true,
+  "poster_height": 61,
+  "cover_flow": true,
+  "centre_dock": true,
+  "home_widgets": true,
+  "widget_pinned_app": "com.spotify.tv.android",
+  "casual_greeting": true,
+  "glass_style": "rim",
+  "dock_apps": ["com.google.android.youtube.tv", "com.netflix.ninja", "in.startv.hotstar",
+                "com.apple.atve.sony.appletv", "com.sonyliv", "com.spotify.tv.android"]
+}
+```
+
+On a Sony like mine, add the redirect keys from the repo's Sony route too (`stock_home_redirect`, and `hidden_apps` /
+`live_tv_package` for Sony's TV app). Leave out `home_widgets` for the centred version without widgets. Every key is described in
+[`themes/README.md`](themes/README.md). The widgets need the launcher's notification listener allowed once, so it can see
+media sessions:
+
+```bash
+adb shell cmd notification allow_listener com.gathin.tvhome/com.gathin.tvhome.MediaListener
+```
+
+The changes are in [`CoverFlow.java`](launcher/app/src/main/java/com/gathin/tvhome/CoverFlow.java),
+[`WidgetColumn.java`](launcher/app/src/main/java/com/gathin/tvhome/WidgetColumn.java),
+[`NowPlaying.java`](launcher/app/src/main/java/com/gathin/tvhome/NowPlaying.java) and
+[`MediaListener.java`](launcher/app/src/main/java/com/gathin/tvhome/MediaListener.java), plus additions to `MainActivity`,
+`AppAdapter` and `Config`.
+
+**Credit.** CleanYourTV is by [Gathin](https://github.com/Gathin23), MIT licensed, and this fork keeps that licence.
+The design and the launcher changes here were made with the help of Claude Code.
+
+---
+
+<a id="original-readme"></a>
+
 <p align="center">
   <a href="https://cleanyour.tv"><img src="https://raw.githubusercontent.com/Gathin23/cleanyourtv/main/docs/banner.png" alt="CleanYourTV. Your TV, minus the ads. Strip the bloatware from any Android TV or Google TV over Wi-Fi and replace the ad-filled home screen with a clean launcher that looks like an Apple TV. No root, no cable, nothing uninstalled, and a one-line restore." width="800"></a>
 </p>
