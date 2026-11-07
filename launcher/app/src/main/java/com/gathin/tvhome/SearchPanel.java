@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.TypedValue;
+import android.view.FocusFinder;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -119,7 +120,13 @@ final class SearchPanel {
             pillHint.setTextColor(focused ? 0xCCFFFFFF : 0x8CFFFFFF);
             if (focused) host.onPillFocused();
         });
-        pill.setOnClickListener(v -> open());
+        // OK speaks; holding OK opens the panel to type instead.
+        pill.setOnClickListener(v -> speak());
+        pill.setLongClickable(true);
+        pill.setOnLongClickListener(v -> {
+            type();
+            return true;
+        });
         pill.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             switch (keyCode) {
@@ -138,7 +145,15 @@ final class SearchPanel {
         });
 
         // The panel: over all of Home, dark enough that the row behind only shows as colour.
-        panel = new FrameLayout(ctx);
+        // Home stays focusable behind the panel, so the remote's arrows are kept inside it while it is open:
+        // the next view in the panel, or staying put at its edge.
+        panel = new FrameLayout(ctx) {
+            @Override
+            public View focusSearch(View focused, int direction) {
+                View next = FocusFinder.getInstance().findNextFocus(this, focused, direction);
+                return next != null ? next : focused;
+            }
+        };
         panel.setVisibility(View.GONE);
         panel.setClickable(true);
         panel.setBackgroundColor(0xFA0B0C10);
@@ -162,7 +177,7 @@ final class SearchPanel {
             orb.setBackground(circle(f));
             orb.animate().scaleX(f ? 1.08f : 1f).scaleY(f ? 1.08f : 1f).setDuration(180).start();
         });
-        orb.setOnClickListener(v -> listen());
+        orb.setOnClickListener(v -> speak());
         LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(dp(48), dp(48));
         olp.rightMargin = dp(16);
         ask.addView(orb, olp);
@@ -256,45 +271,53 @@ final class SearchPanel {
         return panel.getVisibility() == View.VISIBLE;
     }
 
-    /** Opens the panel and asks for a title out loud; without voice input, the field takes typing instead. */
-    void open() {
+    /**
+     * Asks the TV's voice input for a title. Its own bar is the only thing on screen while it listens: the panel
+     * opens once there are words to look up (heard). Without voice input, the panel opens to type instead.
+     */
+    void speak() {
+        if (host.listen()) {
+            if (isOpen()) panel.setVisibility(View.GONE);
+            return;
+        }
+        type();
+    }
+
+    /** Opens the panel with the field ready for typing. */
+    void type() {
+        show();
+        result.setVisibility(View.GONE);
+        others.setVisibility(View.GONE);
+        showMessage("", false);
+        field.setText("");
+        state.setText(R.string.search_typing);
+        field.requestFocus();
+        showKeyboard();
+    }
+
+    private void show() {
+        if (isOpen()) return;
         panel.setVisibility(View.VISIBLE);
         panel.setAlpha(0f);
         panel.animate().alpha(1f).setDuration(220).start();
-        showMessage("", false);
-        result.setVisibility(View.GONE);
-        others.setVisibility(View.GONE);
-        field.setText("");
-        listen();
     }
 
     void close() {
         if (!isOpen()) return;
+        panel.clearAnimation();
         seq++;
         hideKeyboard();
         panel.animate().alpha(0f).setDuration(160).withEndAction(() -> panel.setVisibility(View.GONE)).start();
         host.onClosed();
     }
 
-    private void listen() {
-        state.setText(R.string.search_listening);
-        if (!host.listen()) {
-            state.setText(R.string.search_typing);
-            field.requestFocus();
-            showKeyboard();
-        } else {
-            orb.requestFocus();
-        }
-    }
-
-    /** What the voice input heard; nothing heard leaves the panel ready to type. */
+    /** What the voice input heard. Cancelled or nothing heard: back where it started, on the pill. */
     void heard(String text) {
-        if (!isOpen()) return;
         if (text == null || text.trim().isEmpty()) {
-            state.setText(R.string.search_typing);
-            field.requestFocus();
+            if (!isOpen()) pill.requestFocus();
             return;
         }
+        show();
         field.setText(text);
         search(text);
     }

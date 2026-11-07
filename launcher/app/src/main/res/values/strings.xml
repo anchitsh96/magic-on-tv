@@ -95,7 +95,6 @@
     <string name="search_pill">Search or say a title</string>
     <string name="search_pill_hint">OK to speak</string>
     <string name="search_prompt">Say a show, a film or a match</string>
-    <string name="search_listening">Listening</string>
     <string name="search_typing">Type a title</string>
     <string name="search_looking">Looking</string>
     <string name="search_on_apps">On %1$d of your apps</string>
