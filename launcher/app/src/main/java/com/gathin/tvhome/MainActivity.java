@@ -68,6 +68,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.PopupWindow;
+import android.widget.TextClock;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -270,8 +271,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean poster;
     /** config home_widgets: the now-playing column left of the poster row; null when off. */
     private WidgetColumn widgets;
-    /** config title_search: the search pill under the widgets and its panel; null when off. */
+    /** config title_search: the search pill under the widgets, and the search screen it opens; null when off. */
     private SearchPanel search;
+    private SearchScreen searchScreen;
+    /** title_search: the day of the week over the date beside the clock, where the greeting was. */
+    private TextClock dayClock;
     /** poster_carousel: the soft light in the focused app's colour behind its tile; null otherwise. */
     private View tileGlow;
     private int tileGlowColor;
@@ -661,6 +665,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ((TextView) findViewById(R.id.clock)).setTextSize(34f);
             View page = (View) wrap.getParent();
             page.setPadding(page.getPaddingLeft(), (int) (16 * density), page.getPaddingRight(), page.getPaddingBottom());
+            if (cfg.titleSearch) {
+                // title_search: the greeting moves into the search pill (updateGreeting); beside the clock, the day
+                // over the date, as the prototype has them.
+                greeting.setVisibility(View.GONE);
+                TextClock date = findViewById(R.id.date);
+                ViewGroup column = (ViewGroup) date.getParent();
+                dayClock = new TextClock(this);
+                dayClock.setFormat12Hour("EEEE");
+                dayClock.setFormat24Hour("EEEE");
+                dayClock.setTypeface(date.getTypeface());
+                dayClock.setTextColor(0xE0FFFFFF);
+                dayClock.setAllCaps(false);
+                dayClock.setIncludeFontPadding(false);
+                dayClock.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+                column.addView(dayClock, column.indexOfChild(date), new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                date.setFormat12Hour("d MMMM");
+                date.setFormat24Hour("d MMMM");
+                date.setAllCaps(false);
+                date.setPadding(date.getPaddingLeft(), (int) (3 * density), date.getPaddingRight(), 0);
+            }
             if (cfg.posterHeight < 80) prototypeHeader();
         }
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
@@ -806,12 +831,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
                 @Override
                 public void onPillUp() {
-                    if (widgets == null || !widgets.focusLast()) focusTile(lastFocused);
+                    focusTile(lastFocused);
                 }
 
                 @Override
-                public void onPillRight() {
-                    focusTile(lastFocused);
+                public void onPillLeft() {
+                    if (widgets == null || !widgets.focusLast()) focusTile(lastFocused);
                 }
 
                 @Override
@@ -820,12 +845,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
 
                 @Override
+                public void openScreen(String said) {
+                    searchScreen.open(said);
+                }
+            });
+            searchScreen = new SearchScreen(this, new SearchScreen.Host() {
+                @Override
+                public void requestMic() {
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_REQUEST);
+                }
+
+                @Override
                 public void onClosed() {
                     search.pill.requestFocus();
                 }
-            }, cfg.titleSearchCountry);
+            }, cfg.titleSearchCountry, cfg.claudeApiKey, cfg.widgetPinnedApp);
             ((ViewGroup) grid.getParent()).addView(search.pill, new FrameLayout.LayoutParams(0, 0, Gravity.TOP | Gravity.START));
-            root.addView(search.panel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            root.addView(searchScreen.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         if (cfg.coverFlow) CoverFlow.attach(grid, cfg.homeWidgets);
 
@@ -1229,7 +1265,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLibraryIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
-        if (search != null) search.close();
+        if (search != null) {
+            search.stop();
+            searchScreen.close();
+        }
         if (gameDay != null && !stopped) gameDay.read();
         // Home goes back to the first dock app: the first tile, or the middle of the row with centre_dock.
         final int home = adapter.homePosition();
@@ -1351,7 +1390,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == MIC_REQUEST && search != null) {
-            search.micAnswered(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (searchScreen.isOpen()) searchScreen.micAnswered(granted);
+            else search.micAnswered(granted);
         }
     }
 
@@ -1541,6 +1582,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onStop() {
         super.onStop();
+        if (search != null) search.stop();
         started = false;
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
@@ -1969,8 +2011,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (search != null && search.isOpen()) {
-            search.close();
+        if (search != null && searchScreen.back()) return;
+        if (search != null && search.isListening()) {
+            search.stop();
             return;
         }
         // Home screen: Back goes nowhere, unless back_opens_clock is on.
@@ -2459,7 +2502,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float unit = getResources().getDisplayMetrics().heightPixels / 1080f;
         ((TextView) findViewById(R.id.clock)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 64 * unit);
         ((TextView) findViewById(R.id.ampm)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * unit);
-        ((TextView) findViewById(R.id.date)).setTextSize(TypedValue.COMPLEX_UNIT_PX, 24 * unit);
+        ((TextView) findViewById(R.id.date)).setTextSize(TypedValue.COMPLEX_UNIT_PX, (dayClock != null ? 22 : 24) * unit);
+        if (dayClock != null) dayClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, 26 * unit);
         greeting.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * unit);
         // The pills keep their own layout (icons, Wi-Fi name, focus states) and are drawn smaller, pinned to the
         // right edge and the middle of their row, so the header's right side stays aligned.
@@ -2564,7 +2608,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         widgets.size(width, height);
     }
 
-    /** title_search: the pill under the tiles, a gap below them (the prototype's 36px under a 660px tile). */
+    /** title_search: the pill under the widgets, well below the tiles (the prototype's 94px under a 660px tile). */
     private void placeSearchPill(int left, int tileTop, int width, int tileH) {
         View item = grid.getChildCount() > 0 ? grid.getChildAt(0) : null;
         View card = item == null ? null : item.findViewById(R.id.card);
@@ -2572,9 +2616,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             tileTop = grid.getTop() + item.getTop() + card.getTop();
             tileH = card.getHeight();
         }
-        search.sizePill(width, tileH);
+        search.sizePill(width);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) search.pill.getLayoutParams();
-        int top = tileTop + tileH + Math.round(tileH * 0.055f);
+        int top = tileTop + tileH + Math.round(tileH * 0.142f);
         if (lp.leftMargin == left && lp.topMargin == top) return;
         lp.leftMargin = left;
         lp.topMargin = top;
@@ -3136,6 +3180,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (shamsi) shamsiDate.setText(Shamsi.today(getResources()));
         if (lunar) lunarDate.setText(Lunar.today(getResources(), lunarOffset));
+        if (search != null) search.setGreeting(greeting.getText());
     }
 
     // ---- race-weekend panel (a theme's race_calendar) -----------------------------------------------

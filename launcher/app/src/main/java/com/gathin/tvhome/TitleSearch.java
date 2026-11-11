@@ -62,8 +62,17 @@ final class TitleSearch {
 
     /** A film or show, and the TV's apps that have it, best terms first. */
     static final class Title {
+        /** JustWatch's id ("tm56184"): what Seen it remembers. */
+        String id = "";
         String title = "", kind = "", description = "", poster = "";
+        /** A wide still for the search screen's billboard, and how long it is ("2h 19m", "4 seasons"). */
+        String backdrop = "", length = "";
+        /** JustWatch's genre codes ("trl", "cmy"). */
+        final List<String> genres = new ArrayList<>();
         int year;
+        /** IMDb rating out of 10, and how many people rated it; 0 when IMDb has none. */
+        double imdb;
+        int imdbVotes;
         /** Listed at cinemas (ticketing services), whatever the streaming apps have. */
         boolean inCinemas;
         final List<Offer> offers = new ArrayList<>();
@@ -204,14 +213,27 @@ final class TitleSearch {
     }
 
     static String requestBody(String words, String country, int first) throws JSONException {
-        String query = "query($country:Country!,$language:Language!,$first:Int!,$filter:TitleFilter){"
-                + "popularTitles(country:$country,first:$first,filter:$filter){edges{node{objectType "
-                + "content(country:$country,language:$language){title originalReleaseYear shortDescription posterUrl} "
+        return requestBody(new JSONObject().put("searchQuery", words), "POPULAR", country, first);
+    }
+
+    /** A JustWatch query for titles matching a filter (Discover.Filter.toJustWatch), in one of its sort orders. */
+    static String requestBody(JSONObject filter, String sort, String country, int first) throws JSONException {
+        String query = "query($country:Country!,$language:Language!,$first:Int!,$filter:TitleFilter,$sort:PopularTitlesSorting!){"
+                + "popularTitles(country:$country,first:$first,filter:$filter,sortBy:$sort){edges{node{id objectType "
+                + "... on Show{totalSeasonCount} "
+                + "content(country:$country,language:$language){title originalReleaseYear shortDescription posterUrl runtime "
+                + "backdrops{backdropUrl} genres{shortName} scoring{imdbScore imdbVotes}} "
                 + "offers(country:$country,platform:WEB){monetizationType standardWebURL package{technicalName}}}}}}";
         JSONObject vars = new JSONObject()
                 .put("country", country).put("language", "en").put("first", first)
-                .put("filter", new JSONObject().put("searchQuery", words));
+                .put("filter", filter).put("sort", sort);
         return new JSONObject().put("query", query).put("variables", vars).toString();
+    }
+
+    /** A wide still: 1440px across is enough for the billboard at 1080p. */
+    static String backdropUrl(String path) {
+        if (path == null || path.isEmpty()) return "";
+        return IMAGES + path.replace("{profile}", "s1440").replace("{format}", "jpg");
     }
 
     /** Titles from a JustWatch answer, each with the installed apps that have it, one offer per app on its best terms. */
@@ -222,11 +244,26 @@ final class TitleSearch {
             JSONObject node = edges.getJSONObject(i).getJSONObject("node");
             JSONObject content = node.getJSONObject("content");
             Title t = new Title();
+            t.id = node.optString("id");
             t.title = content.optString("title");
             t.year = content.optInt("originalReleaseYear");
             t.description = content.optString("shortDescription");
             t.poster = posterUrl(content.optString("posterUrl"));
+            JSONObject scoring = content.optJSONObject("scoring");
+            if (scoring != null) {
+                t.imdb = scoring.optDouble("imdbScore", 0);
+                t.imdbVotes = (int) scoring.optDouble("imdbVotes", 0);
+                if (Double.isNaN(t.imdb)) t.imdb = 0;
+            }
             t.kind = "MOVIE".equals(node.optString("objectType")) ? "MOVIE" : "SHOW";
+            JSONArray backdrops = content.optJSONArray("backdrops");
+            if (backdrops != null && backdrops.length() > 0) t.backdrop = backdropUrl(backdrops.getJSONObject(0).optString("backdropUrl"));
+            JSONArray genres = content.optJSONArray("genres");
+            for (int g = 0; genres != null && g < genres.length(); g++) t.genres.add(genres.getJSONObject(g).optString("shortName"));
+            int runtime = content.optInt("runtime");
+            int seasons = node.optInt("totalSeasonCount");
+            t.length = "SHOW".equals(t.kind) ? (seasons > 0 ? seasons + (seasons == 1 ? " season" : " seasons") : "")
+                    : runtime > 0 ? (runtime / 60 > 0 ? runtime / 60 + "h " : "") + runtime % 60 + "m" : "";
             Map<String, Offer> best = new LinkedHashMap<>();
             JSONArray offers = node.optJSONArray("offers");
             for (int k = 0; offers != null && k < offers.length(); k++) {
@@ -269,6 +306,15 @@ final class TitleSearch {
 
     /** Looks the words up; call off the main thread. */
     static List<Title> search(String words, String country, PackageManager pm) throws IOException, JSONException {
+        return parse(post(requestBody(words, country, 6)), pm);
+    }
+
+    /** Titles matching a filter, in a sort order; call off the main thread. */
+    static List<Title> query(JSONObject filter, String sort, String country, int first, PackageManager pm) throws IOException, JSONException {
+        return parse(post(requestBody(filter, sort, country, first)), pm);
+    }
+
+    private static String post(String body) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(API).openConnection();
         try {
             c.setConnectTimeout(TIMEOUT_MS);
@@ -277,10 +323,10 @@ final class TitleSearch {
             c.setDoOutput(true);
             c.setRequestProperty("Content-Type", "application/json");
             try (OutputStream os = c.getOutputStream()) {
-                os.write(requestBody(words, country, 6).getBytes(StandardCharsets.UTF_8));
+                os.write(body.getBytes(StandardCharsets.UTF_8));
             }
             if (c.getResponseCode() != 200) throw new IOException("HTTP " + c.getResponseCode());
-            return parse(new String(read(c.getInputStream()), StandardCharsets.UTF_8), pm);
+            return new String(read(c.getInputStream()), StandardCharsets.UTF_8);
         } finally {
             c.disconnect();
         }

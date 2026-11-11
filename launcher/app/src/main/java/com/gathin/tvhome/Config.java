@@ -298,6 +298,12 @@ final class Config {
     final boolean titleSearch;
     /** The country whose streaming catalogue title_search looks in, as two letters (config.xml, title_search_country). */
     final String titleSearchCountry;
+    /**
+     * With title_search, the Anthropic API key that lets the search screen understand a request ("a thriller above 8.5
+     * I haven't seen") rather than only a title. Only from a theme's config.json (claude_api_key), never a resource,
+     * so it stays off the APK and out of the repository; empty keeps search to titles.
+     */
+    final String claudeApiKey;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -315,10 +321,11 @@ final class Config {
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
                    int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
                    boolean posterCarousel, boolean coverFlow, boolean centreDock, boolean homeWidgets, String widgetPinnedApp,
-                   boolean casualGreeting, int posterHeight, boolean titleSearch, String titleSearchCountry) {
+                   boolean casualGreeting, int posterHeight, boolean titleSearch, String titleSearchCountry, String claudeApiKey) {
         this.posterCarousel = posterCarousel;
         this.titleSearch = posterCarousel && titleSearch;
         this.titleSearchCountry = titleSearchCountry;
+        this.claudeApiKey = claudeApiKey;
         this.posterHeight = Math.max(40, Math.min(90, posterHeight));
         this.casualGreeting = posterCarousel && casualGreeting;
         this.coverFlow = posterCarousel && coverFlow;
@@ -580,6 +587,7 @@ final class Config {
         boolean casualGreeting = res.getBoolean(R.bool.casual_greeting);
         boolean titleSearch = res.getBoolean(R.bool.title_search);
         String titleSearchCountry = res.getString(R.string.title_search_country).trim();
+        String claudeApiKey = "";
         int posterHeight = res.getInteger(R.integer.poster_height);
         boolean applied = false;
 
@@ -703,6 +711,7 @@ final class Config {
             casualGreeting = bool(json, "casual_greeting", casualGreeting);
             titleSearch = bool(json, "title_search", titleSearch);
             titleSearchCountry = string(json, "title_search_country", titleSearchCountry).trim();
+            claudeApiKey = string(json, "claude_api_key", claudeApiKey).trim();
             posterHeight = integer(json, "poster_height", posterHeight, 40, 90);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
@@ -780,7 +789,8 @@ final class Config {
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
                 posterCarousel, coverFlow, centreDock, homeWidgets, widgetPinnedApp, casualGreeting, posterHeight,
-                titleSearch, titleSearchCountry.matches("[A-Za-z]{2}") ? titleSearchCountry.toUpperCase(Locale.ROOT) : "IN");
+                titleSearch, titleSearchCountry.matches("[A-Za-z]{2}") ? titleSearchCountry.toUpperCase(Locale.ROOT) : "IN",
+                claudeApiKey);
     }
 
     /**

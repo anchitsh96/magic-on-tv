@@ -45,6 +45,11 @@ android {
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
+    // title_search: the search screen asks Claude what a spoken request means (Ask.java). Only used when a theme sets
+    // claude_api_key.
+    implementation 'com.anthropic:anthropic-java:3.3.0'
     // Test only (never in the APK): plain JVM tests for the module card validators, src/test.
     testImplementation 'junit:junit:4.13.2'
+    // The real org.json for the JVM tests: Android's is a stub there (AskTest).
+    testImplementation 'org.json:json:20240303'
 }
